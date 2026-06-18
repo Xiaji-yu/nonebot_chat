@@ -11,6 +11,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# 常量
+SEG_TYPE_AT = "at"
+SEG_DATA_QQ = "qq"
+
 
 class TriggerDetector:
     """触发检测器。
@@ -25,9 +29,19 @@ class TriggerDetector:
     MODE_KEYWORD = "keyword"
     MODE_SPECTATOR = "spectator"
 
+    VALID_MODES = frozenset({MODE_MENTION, MODE_KEYWORD, MODE_SPECTATOR})
+
     def __init__(self, trigger_config: Any) -> None:
         self._mode = trigger_config.mode
+        if self._mode not in self.VALID_MODES:
+            raise ValueError(
+                f"Invalid trigger mode: {self._mode!r}. "
+                f"Must be one of: {', '.join(sorted(self.VALID_MODES))}"
+            )
         self._keywords: list[str] = [kw.lower() for kw in trigger_config.keywords]
+
+        if self._mode == self.MODE_KEYWORD and not self._keywords:
+            raise ValueError("keyword trigger mode requires at least one keyword")
 
     def detect(self, event: Any) -> tuple[bool, str]:
         """检测消息是否满足触发条件。
@@ -47,13 +61,15 @@ class TriggerDetector:
             return False, ""
 
         if self._mode == self.MODE_KEYWORD:
-            text = event.get_plaintext().lower()
+            raw = event.get_plaintext()
+            text = (raw or "").lower()
             for kw in self._keywords:
                 if kw in text:
                     return True, f"keyword:{kw}"
             return False, ""
 
-        logger.warning("Unknown trigger mode: %s", self._mode)
+        # 不应到达（__init__ 已校验）
+        logger.error("Unknown trigger mode: %s", self._mode)
         return False, ""
 
     def is_mention(self, event: Any) -> bool:
@@ -66,13 +82,15 @@ class TriggerDetector:
         message = getattr(event, "message", None)
         if message is None:
             return False
+        bot_qq = str(getattr(event, "self_id", ""))
+        if not bot_qq:
+            return False
         for seg in message:
             seg_type = getattr(seg, "type", "")
-            if seg_type == "at":
-                # OneBot v11: at 段的 data 中有 qq 字段
-                data = getattr(seg, "data", {})
-                bot_qq = getattr(event, "self_id", None)
-                target_qq = data.get("qq", "")
-                if str(target_qq) == str(bot_qq):
-                    return True
+            if seg_type == SEG_TYPE_AT:
+                data = getattr(seg, "data", None)
+                if isinstance(data, dict):
+                    target_qq = data.get(SEG_DATA_QQ, "")
+                    if str(target_qq) == bot_qq:
+                        return True
         return False

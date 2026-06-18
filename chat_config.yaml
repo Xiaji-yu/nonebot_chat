@@ -74,7 +74,7 @@ pipeline:
   # 频控
   ratelimit:
     enabled: true
-    per_session: 3
+    max_requests: 3
     window: 10
 
   # 触发检测

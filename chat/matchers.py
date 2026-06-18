@@ -70,6 +70,7 @@ def setup_matchers(
         memory_store=memory_store,
         distiller=distiller,
     )
+    pipeline.set_proactive(proactive)
 
     # 延迟导入 NoneBot（运行时才需要）
     from nonebot import on_command, on_message
@@ -99,11 +100,6 @@ def setup_matchers(
     async def _handle_command(bot: Any, event: Any) -> None:
         await pipeline.process(event, get_session_id(event), _make_send(bot, event))
 
-        # 主动回复检查
-        sid = get_session_id(event)
-        if proactive.should_reply(sid):
-            await proactive.generate_and_reply(sid, bot, event, bot_send)
-
     # ── 消息匹配器（触发检测） ─────────────────────────────────────
     msg_matcher = on_message(
         permission=permission,
@@ -118,5 +114,5 @@ def setup_matchers(
     logger.info(
         "Chat matchers registered (only_superusers=%s, trigger=%s).",
         config.only_superusers,
-        config.pipeline.trigger.mode,
+        personality.pipeline_config.trigger.mode,
     )

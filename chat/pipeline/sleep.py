@@ -6,6 +6,7 @@
 
 __author__ = "Xiaji-yu"
 
+import asyncio
 import logging
 from datetime import datetime, time
 from typing import Any
@@ -28,35 +29,46 @@ class SleepController:
     def __init__(self, sleep_config: Any) -> None:
         self._cfg = sleep_config
         self._manual_sleeping: bool = False
-        """manual 模式下的休眠状态。"""
+        self._lock = asyncio.Lock()
 
     def is_sleeping(self) -> bool:
         """检查当前是否处于休眠状态。"""
-        if not self._cfg.enabled:
+        try:
+            if not self._cfg.enabled:
+                return False
+            if self._cfg.mode == "manual":
+                return self._manual_sleeping
+            if self._cfg.mode == "schedule":
+                return self._is_in_schedule()
+            logger.warning("Unknown sleep mode: %s", self._cfg.mode)
             return False
-        if self._cfg.mode == "manual":
-            return self._manual_sleeping
-        if self._cfg.mode == "schedule":
-            return self._is_in_schedule()
-        return False
+        except AttributeError as exc:
+            logger.warning("Sleep config missing attributes: %s", exc)
+            return False
 
     def is_override_allowed(self) -> bool:
         """休眠期间 @mention 是否允许唤醒。"""
-        return bool(self._cfg.override_by_mention)
+        try:
+            return bool(self._cfg.override_by_mention)
+        except AttributeError:
+            return True  # 安全默认值
 
-    def toggle(self) -> bool:
-        """切换休眠状态（manual 模式）。
+    async def toggle(self) -> bool:
+        """切换休眠状态（manual 模式，线程安全）。
 
         Returns:
             切换后的休眠状态。
         """
-        self._manual_sleeping = not self._manual_sleeping
-        logger.info("Sleep mode toggled: %s", self._manual_sleeping)
-        return self._manual_sleeping
+        async with self._lock:
+            self._manual_sleeping = not self._manual_sleeping
+            logger.info("Sleep mode toggled: %s", self._manual_sleeping)
+            return self._manual_sleeping
 
-    def force_wake(self) -> None:
-        """强制唤醒（取消休眠）。"""
-        self._manual_sleeping = False
+    async def force_wake(self) -> None:
+        """强制唤醒（取消休眠，线程安全）。"""
+        async with self._lock:
+            self._manual_sleeping = False
+            logger.info("Sleep mode force-woken")
 
     # ------------------------------------------------------------------
 
@@ -68,6 +80,12 @@ class SleepController:
             end = time.fromisoformat(self._cfg.schedule.end)
         except (ValueError, AttributeError) as exc:
             logger.warning("Invalid sleep schedule config: %s", exc)
+            return False
+
+        if start == end:
+            logger.warning(
+                "Sleep schedule start equals end (%s), schedule disabled", start
+            )
             return False
 
         if start <= end:

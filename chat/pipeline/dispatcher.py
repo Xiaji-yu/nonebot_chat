@@ -54,16 +54,15 @@ class AIDispatcher:
         # 存储用户消息
         self._memory.add_user_message(session_id, user_input)
 
-        # 检查是否需要蒸馏
-        if self._memory.needs_distillation(
-            session_id,
-            self._personality.memory_max_history,
-            self._personality.memory_distillation_threshold,
-        ):
-            await self._distiller.distill(
-                session_id,
-                self._personality.memory_core_memory_max,
-            )
+        # 原子蒸馏检查（防止并发双重蒸馏）
+        if self._memory.try_begin_distill(session_id):
+            try:
+                await self._distiller.distill(
+                    session_id,
+                    self._personality.memory_core_memory_max,
+                )
+            finally:
+                self._memory.end_distill(session_id)
 
         # 构建消息列表
         messages = self._build_messages(session_id, user_input, trigger_type)

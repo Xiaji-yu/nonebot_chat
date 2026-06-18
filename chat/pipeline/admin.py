@@ -23,7 +23,6 @@ class AdminInterceptor:
     不经过 LLM，降低延迟和 token 消耗。
     """
 
-    # 内置命令
     BUILTIN_COMMANDS: dict[str, str] = {
         "清空记忆": "clear_memory",
         "clear": "clear_memory",
@@ -40,16 +39,11 @@ class AdminInterceptor:
         self._custom_handlers: dict[str, AdminHandler] = {}
 
     def register(self, command: str, handler: AdminHandler) -> None:
-        """注册自定义管理命令处理器。
-
-        Args:
-            command: 命令关键词。
-            handler: 异步处理函数，接收参数字符串，返回回复文本或 None。
-        """
+        """注册自定义管理命令处理器。"""
         self._custom_handlers[command.lower()] = handler
 
-    def intercept(self, text: str) -> str | None:
-        """检查是否命中管理命令。
+    async def intercept(self, text: str) -> str | None:
+        """检查是否命中管理命令（async 版本）。
 
         Args:
             text: 消息纯文本。
@@ -67,18 +61,13 @@ class AdminInterceptor:
         # 检查自定义处理器
         handler = self._custom_handlers.get(cmd_name)
         if handler is not None:
-            import asyncio
-            return asyncio.get_event_loop().run_until_complete(handler(args))
+            return await handler(args)
 
         # 内置命令
         return self._handle_builtin(cmd_name, args)
 
     def _parse_command(self, text: str) -> tuple[str | None, str]:
-        """解析命令。
-
-        Returns:
-            (command_name, args) 或 (None, "")。
-        """
+        """解析命令。"""
         stripped = text.strip()
         for keyword, cmd in self.BUILTIN_COMMANDS.items():
             if stripped == keyword or stripped.startswith(keyword + " "):
@@ -87,9 +76,8 @@ class AdminInterceptor:
         return None, ""
 
     def _handle_builtin(self, cmd: str, args: str) -> str | None:
-        """处理内置命令。"""
+        """处理内置命令（返回标记，由 Pipeline 执行副作用）。"""
         if cmd == "clear_memory":
-            # 由外部注入 memory_store 处理
             return "__CLEAR_MEMORY__"
         if cmd == "status":
             return "__STATUS__"

@@ -9,17 +9,20 @@ __author__ = "Xiaji-yu"
 import hashlib
 import logging
 import time
+from threading import Lock
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # 存储结构: {(session_id, content_hash): timestamp}
 _dedup_store: dict[tuple[str, str], float] = {}
+_dedup_lock = Lock()
 
 
 def reset() -> None:
     """清空去重缓存（测试/重启时调用）。"""
-    _dedup_store.clear()
+    with _dedup_lock:
+        _dedup_store.clear()
 
 
 def check(session_id: str, content: str, window: float = 5.0) -> bool:
@@ -36,16 +39,17 @@ def check(session_id: str, content: str, window: float = 5.0) -> bool:
     key = _session_key(session_id, content)
     now = time.time()
 
-    # 清理过期条目
-    _purge_expired(now)
+    with _dedup_lock:
+        # 清理过期条目
+        _purge_expired(now)
 
-    last = _dedup_store.get(key)
-    if last is not None and (now - last) < window:
-        logger.debug("Dedup hit: session=%s, age=%.1fs", session_id, now - last)
-        return True
+        last = _dedup_store.get(key)
+        if last is not None and (now - last) < window:
+            logger.debug("Dedup hit: session=%s, age=%.1fs", session_id, now - last)
+            return True
 
-    _dedup_store[key] = now
-    return False
+        _dedup_store[key] = now
+        return False
 
 
 def _session_key(session_id: str, content: str) -> tuple[str, str]:
@@ -55,7 +59,7 @@ def _session_key(session_id: str, content: str) -> tuple[str, str]:
 
 
 def _purge_expired(now: float, max_age: float = 300.0) -> None:
-    """清理超过 max_age 秒的过期条目。"""
+    """清理超过 max_age 秒的过期条目（必须在锁内调用）。"""
     expired = [k for k, t in _dedup_store.items() if now - t > max_age]
     for k in expired:
         del _dedup_store[k]

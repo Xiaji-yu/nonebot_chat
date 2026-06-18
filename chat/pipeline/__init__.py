@@ -63,6 +63,7 @@ class Pipeline:
 
         self._personality = personality
         self._memory_store = memory_store
+        self._proactive = None  # 可选注入
 
     # ------------------------------------------------------------------
     # Pipeline 入口
@@ -125,6 +126,13 @@ class Pipeline:
         # 防抖关闭：直接走触发检测 → AI 派发
         await self._process_once(event, session_id, text, send_func)
 
+        # Stage 9: 主动回复（经过 sleep/access/ratelimit 检查后）
+        await self._maybe_proactive(session_id, send_func)
+
+    def set_proactive(self, proactive: Any) -> None:
+        """注入主动回复器。"""
+        self._proactive = proactive
+
     async def _process_once(
         self,
         event: Any,
@@ -146,6 +154,17 @@ class Pipeline:
         sender = MessageSender(send_func)
         parts = self._formatter.format(reply)
         await sender.send_batch(parts)
+
+        # Stage 9: 主动回复（继承 sleep/access/ratelimit 检查）
+        await self._maybe_proactive(session_id, send_func)
+
+    async def _maybe_proactive(self, session_id: str, send_func: Any) -> None:
+        """条件性主动回复。经过 sleep/access/ratelimit 检查。"""
+        if self._proactive is None:
+            return
+        await self._proactive.generate_and_reply(
+            session_id, send_func=send_func,
+        )
 
     async def _handle_admin(self, cmd: str, session_id: str, send_func: Any) -> None:
         """处理管理命令。"""

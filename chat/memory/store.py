@@ -42,6 +42,9 @@ class SessionMemory:
     last_proactive_time: float = 0.0
     """上次主动回复的时间戳。"""
 
+    _distilling: bool = field(default=False, compare=False)
+    """蒸馏锁：防止并发双重蒸馏。"""
+
     def add_message(self, role: str, content: str) -> None:
         """添加一条消息。"""
         self.messages.append(Message(role=role, content=content))
@@ -114,6 +117,30 @@ class MemoryStore:
     ) -> bool:
         """检查是否需要蒸馏。"""
         return self._get_or_create(session_id).prune(max_count, threshold)
+
+    def try_begin_distill(self, session_id: str) -> bool:
+        """尝试开始蒸馏（原子操作）。
+
+        Returns:
+            True 表示获取蒸馏锁成功，调用方应执行蒸馏。
+            False 表示已有其他协程在蒸馏此会话。
+        """
+        with self._lock:
+            mem = self._sessions.get(session_id)
+            if mem is None:
+                # 新会话，无需蒸馏
+                return False
+            if mem._distilling:
+                return False
+            mem._distilling = True
+            return True
+
+    def end_distill(self, session_id: str) -> None:
+        """结束蒸馏，释放锁。"""
+        with self._lock:
+            mem = self._sessions.get(session_id)
+            if mem is not None:
+                mem._distilling = False
 
     def set_core_memory(self, session_id: str, summaries: list[str]) -> None:
         """设置核心记忆（蒸馏摘要）。"""

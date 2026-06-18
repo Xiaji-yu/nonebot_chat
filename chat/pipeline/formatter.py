@@ -81,10 +81,10 @@ class MessageFormatter:
             for boundary in self.SPLIT_BOUNDARIES:
                 idx = remaining.rfind(boundary, 0, max_len)
                 if idx > 0:
-                    split_at = idx + len(boundary.rstrip())
+                    split_at = idx + len(boundary)
                     break
 
-            parts.append(remaining[:split_at].rstrip())
+            parts.append(remaining[:split_at].rstrip(" \t"))
             remaining = remaining[split_at:].lstrip()
 
         if remaining:

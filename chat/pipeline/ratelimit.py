@@ -15,14 +15,14 @@ logger = logging.getLogger(__name__)
 
 
 class RateLimiter:
-    """会话级频控器。
+    """会话级频控器（滑动窗口）。
 
     每个 session 在时间窗口内最多触发 N 次。
     """
 
     def __init__(self, rl_config: Any) -> None:
         self._window: float = float(rl_config.window)
-        self._limit: int = int(rl_config.per_session)
+        self._limit: int = int(rl_config.max_requests)
         self._enabled: bool = rl_config.enabled
         self._records: dict[str, list[float]] = {}
         self._lock = Lock()
@@ -45,19 +45,25 @@ class RateLimiter:
             # 清理窗口外的记录
             cutoff = now - self._window
             timestamps = [t for t in timestamps if t > cutoff]
-            timestamps.append(now)
-            self._records[session_id] = timestamps
 
-            if len(timestamps) > self._limit:
-                oldest = timestamps[0]
-                retry = oldest + self._window - now
+            if len(timestamps) >= self._limit:
+                # 取最早的未过期记录，计算 retry_after
+                retry = timestamps[0] + self._window - now
                 logger.debug(
                     "Rate limited: session=%s, count=%d/%d",
                     session_id, len(timestamps), self._limit,
                 )
                 return False, max(retry, 0.0)
 
-        return True, 0.0
+            # 仅允许时记录时间戳
+            timestamps.append(now)
+            if timestamps:
+                self._records[session_id] = timestamps
+            else:
+                # 不应到达，防御性清理
+                self._records.pop(session_id, None)
+
+            return True, 0.0
 
     def reset(self, session_id: str) -> None:
         """重置指定会话的频控计数。"""

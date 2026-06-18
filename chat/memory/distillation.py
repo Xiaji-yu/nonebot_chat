@@ -83,6 +83,8 @@ class MemoryDistiller:
 
         if summaries:
             self._store.set_core_memory(session_id, summaries)
+            # set_core_memory 内部会创建新 SessionMemory，需重新获取引用
+            session = self._store._get_or_create(session_id)
             session.messages.clear()
             logger.info(
                 "Distillation complete for %s: %d core memories stored.",

@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "nonebat-chat"
+name = "nonebot-chat"
 version = "0.1.0"
 description = "NoneBot2 智能聊天插件 — 人格驱动、记忆系统、主动回复"
 readme = "README.md"
@@ -37,8 +37,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Xiaji-yu/nonebat-chat"
-Repository = "https://github.com/Xiaji-yu/nonebat-chat"
+Homepage = "https://github.com/Xiaji-yu/nonebot_chat"
+Repository = "https://github.com/Xiaji-yu/nonebot_chat"
 
 [tool.hatch.build.targets.wheel]
 packages = ["chat"]

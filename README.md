@@ -25,14 +25,18 @@ NoneBot2 智能聊天插件 — 人格驱动对话、记忆系统、主动回复
 
 ## 安装
 
-```bash
-pip install nonebot-chat
-```
+### 方式一：直接加载本地插件（推荐）
 
-或在 `bot.py` 中直接加载本地插件：
+在 `bot.py` 中加载：
 
 ```python
 nonebot.load_plugin("nonebot_plugin_status.chat")
+```
+
+### 方式二：从 GitHub 安装
+
+```bash
+pip install git+https://github.com/Xiaji-yu/nonebot_chat.git
 ```
 
 ## 配置

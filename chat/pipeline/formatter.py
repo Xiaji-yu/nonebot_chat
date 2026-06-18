@@ -56,15 +56,39 @@ class MessageFormatter:
         # 代码块 → 引用
         text = re.sub(
             r"```(\w*)\n([\s\S]*?)```",
-            lambda m: f"[CQ:quote,text={m.group(2).strip()}]",
+            lambda m: f"[CQ:quote,text={self._cq_escape(m.group(2).strip())}]",
             text,
         )
         # 行内代码
-        text = re.sub(r"`([^`]+)`", r"[CQ:code,\1]", text)
+        text = re.sub(
+            r"`([^`]+)`",
+            lambda m: f"[CQ:code,{self._cq_escape(m.group(1))}]",
+            text,
+        )
         # 加粗
-        text = re.sub(r"\*\*([^*]+)\*\*", r"[CQ:b,\1]", text)
+        text = re.sub(
+            r"\*\*([^*]+)\*\*",
+            lambda m: f"[CQ:b,{self._cq_escape(m.group(1))}]",
+            text,
+        )
         # 斜体
-        text = re.sub(r"\*([^*]+)\*", r"[CQ:i,\1]", text)
+        text = re.sub(
+            r"\*([^*]+)\*",
+            lambda m: f"[CQ:i,{self._cq_escape(m.group(1))}]",
+            text,
+        )
+        return text
+
+    @staticmethod
+    def _cq_escape(text: str) -> str:
+        """转义 CQ Code 参数中的特殊字符。
+
+        OneBot CQ 参数以逗号分隔、方括号包裹，
+        用户内容中的 \, ] , 会导致参数逃逸。
+        """
+        text = text.replace("\\", "\\\\")
+        text = text.replace(",", "\\,")
+        text = text.replace("]", "\\]")
         return text
 
     def _split(self, text: str, max_len: int) -> list[str]:

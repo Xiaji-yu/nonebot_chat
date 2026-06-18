@@ -8,8 +8,9 @@ __author__ = "Xiaji-yu"
 
 import logging
 import time
-from threading import Lock
 from typing import Any
+
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +26,9 @@ class RateLimiter:
         self._limit: int = int(rl_config.max_requests)
         self._enabled: bool = rl_config.enabled
         self._records: dict[str, list[float]] = {}
-        self._lock = Lock()
+        self._lock = asyncio.Lock()
 
-    def check(self, session_id: str) -> tuple[bool, float]:
+    async def check(self, session_id: str) -> tuple[bool, float]:
         """检查是否允许通过。
 
         Args:
@@ -40,7 +41,7 @@ class RateLimiter:
             return True, 0.0
 
         now = time.time()
-        with self._lock:
+        async with self._lock:
             timestamps = self._records.get(session_id, [])
             # 清理窗口外的记录
             cutoff = now - self._window
@@ -65,12 +66,12 @@ class RateLimiter:
 
             return True, 0.0
 
-    def reset(self, session_id: str) -> None:
+    async def reset(self, session_id: str) -> None:
         """重置指定会话的频控计数。"""
-        with self._lock:
+        async with self._lock:
             self._records.pop(session_id, None)
 
-    def reset_all(self) -> None:
+    async def reset_all(self) -> None:
         """重置所有频控计数。"""
-        with self._lock:
+        async with self._lock:
             self._records.clear()

@@ -91,7 +91,7 @@ class Pipeline:
             logger.debug("Sleep override by mention")
 
         # Stage 1: 去重
-        if self._cfg.dedup.enabled and dedup_check(session_id, text):
+        if self._cfg.dedup.enabled and await dedup_check(session_id, text):
             logger.debug("Dropped: duplicate message")
             return
 
@@ -107,7 +107,7 @@ class Pipeline:
             return
 
         # Stage 4: 频控
-        allowed, retry = self._ratelimit.check(session_id)
+        allowed, retry = await self._ratelimit.check(session_id)
         if not allowed:
             logger.debug("Dropped: rate limited (retry in %.1fs)", retry)
             return
@@ -188,7 +188,7 @@ class Pipeline:
 
     async def _send_status(self, session_id: str, send_func: Any) -> None:
         """发送状态信息。"""
-        mem_count = len(self._memory_store.get_history(session_id))
+        mem_count = len(await self._memory_store.get_history(session_id))
         core_count = len(self._memory_store._get_or_create(session_id).core_memory)
         sleeping = self._sleep.is_sleeping()
         status_text = (

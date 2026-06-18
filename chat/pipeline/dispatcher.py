@@ -52,17 +52,17 @@ class AIDispatcher:
             AI 回复文本，失败返回 None。
         """
         # 存储用户消息
-        self._memory.add_user_message(session_id, user_input)
+        await self._memory.add_user_message(session_id, user_input)
 
         # 原子蒸馏检查（防止并发双重蒸馏）
-        if self._memory.try_begin_distill(session_id):
+        if await self._memory.try_begin_distill(session_id):
             try:
                 await self._distiller.distill(
                     session_id,
                     self._personality.memory_core_memory_max,
                 )
             finally:
-                self._memory.end_distill(session_id)
+                await self._memory.end_distill(session_id)
 
         # 构建消息列表
         messages = self._build_messages(session_id, user_input, trigger_type)
@@ -74,7 +74,7 @@ class AIDispatcher:
         )
 
         if reply is not None:
-            self._memory.add_assistant_message(session_id, reply)
+            await self._memory.add_assistant_message(session_id, reply)
 
         return reply
 
@@ -88,7 +88,7 @@ class AIDispatcher:
         msgs: list[dict[str, str]] = [self._personality.build_system_message()]
 
         # 加入历史对话
-        history = self._memory.get_history(
+        history = await self._memory.get_history(
             session_id, self._personality.memory_max_history
         )
         msgs.extend(history)

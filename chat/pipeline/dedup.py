@@ -9,23 +9,24 @@ __author__ = "Xiaji-yu"
 import hashlib
 import logging
 import time
-from threading import Lock
 from typing import Any
+
+import asyncio
 
 logger = logging.getLogger(__name__)
 
 # 存储结构: {(session_id, content_hash): timestamp}
 _dedup_store: dict[tuple[str, str], float] = {}
-_dedup_lock = Lock()
+_dedup_lock = asyncio.Lock()
 
 
-def reset() -> None:
+async def reset() -> None:
     """清空去重缓存（测试/重启时调用）。"""
-    with _dedup_lock:
+    async with _dedup_lock:
         _dedup_store.clear()
 
 
-def check(session_id: str, content: str, window: float = 5.0) -> bool:
+async def check(session_id: str, content: str, window: float = 5.0) -> bool:
     """检查内容是否在时间窗口内重复。
 
     Args:
@@ -39,7 +40,7 @@ def check(session_id: str, content: str, window: float = 5.0) -> bool:
     key = _session_key(session_id, content)
     now = time.time()
 
-    with _dedup_lock:
+    async with _dedup_lock:
         # 清理过期条目
         _purge_expired(now)
 

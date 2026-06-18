@@ -11,8 +11,9 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
-from threading import Lock
 from typing import Any
+
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -92,80 +93,79 @@ class MemoryStore:
 
     def __init__(self) -> None:
         self._sessions: dict[str, SessionMemory] = {}
-        self._lock = Lock()
+        self._lock = asyncio.Lock()
 
-    def _get_or_create(self, session_id: str) -> SessionMemory:
-        with self._lock:
+    async def _get_or_create(self, session_id: str) -> SessionMemory:
+        async with self._lock:
             if session_id not in self._sessions:
                 self._sessions[session_id] = SessionMemory(session_id=session_id)
             return self._sessions[session_id]
 
-    def add_user_message(self, session_id: str, content: str) -> None:
+    async def add_user_message(self, session_id: str, content: str) -> None:
         """添加用户消息。"""
         self._get_or_create(session_id).add_message("user", content)
 
-    def add_assistant_message(self, session_id: str, content: str) -> None:
+    async def add_assistant_message(self, session_id: str, content: str) -> None:
         """添加助手消息。"""
         self._get_or_create(session_id).add_message("assistant", content)
 
-    def get_history(self, session_id: str, max_count: int = 50) -> list[dict[str, Any]]:
+    async def get_history(self, session_id: str, max_count: int = 50) -> list[dict[str, Any]]:
         """获取会话历史。"""
-        return self._get_or_create(session_id).get_history(max_count)
+        return await self._get_or_create(session_id).get_history(max_count)
 
-    def needs_distillation(
+    async def needs_distillation(
         self, session_id: str, max_count: int, threshold: int
     ) -> bool:
         """检查是否需要蒸馏。"""
-        return self._get_or_create(session_id).prune(max_count, threshold)
+        return (await self._get_or_create(session_id)).prune(max_count, threshold)
 
-    def try_begin_distill(self, session_id: str) -> bool:
+    async def try_begin_distill(self, session_id: str) -> bool:
         """尝试开始蒸馏（原子操作）。
 
         Returns:
             True 表示获取蒸馏锁成功，调用方应执行蒸馏。
             False 表示已有其他协程在蒸馏此会话。
         """
-        with self._lock:
+        async with self._lock:
             mem = self._sessions.get(session_id)
             if mem is None:
-                # 新会话，无需蒸馏
                 return False
             if mem._distilling:
                 return False
             mem._distilling = True
             return True
 
-    def end_distill(self, session_id: str) -> None:
+    async def end_distill(self, session_id: str) -> None:
         """结束蒸馏，释放锁。"""
-        with self._lock:
+        async with self._lock:
             mem = self._sessions.get(session_id)
             if mem is not None:
                 mem._distilling = False
 
-    def set_core_memory(self, session_id: str, summaries: list[str]) -> None:
+    async def set_core_memory(self, session_id: str, summaries: list[str]) -> None:
         """设置核心记忆（蒸馏摘要）。"""
-        mem = self._get_or_create(session_id)
+        mem = await self._get_or_create(session_id)
         mem.core_memory = [
             Message(role="system", content=s) for s in summaries
         ]
 
-    def get_last_proactive_time(self, session_id: str) -> float:
+    async def get_last_proactive_time(self, session_id: str) -> float:
         """获取上次主动回复时间戳。"""
-        return self._get_or_create(session_id).last_proactive_time
+        return (await self._get_or_create(session_id)).last_proactive_time
 
-    def set_last_proactive_time(self, session_id: str, timestamp: float) -> None:
+    async def set_last_proactive_time(self, session_id: str, timestamp: float) -> None:
         """设置上次主动回复时间戳。"""
-        self._get_or_create(session_id).last_proactive_time = timestamp
+        (await self._get_or_create(session_id)).last_proactive_time = timestamp
 
-    def clear_session(self, session_id: str) -> None:
+    async def clear_session(self, session_id: str) -> None:
         """清空指定会话。"""
-        with self._lock:
+        async with self._lock:
             if session_id in self._sessions:
                 self._sessions[session_id].clear()
 
-    def clear_all(self) -> None:
+    async def clear_all(self) -> None:
         """清空所有会话。"""
-        with self._lock:
+        async with self._lock:
             for session in self._sessions.values():
                 session.clear()
 

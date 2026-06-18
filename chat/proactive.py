@@ -10,7 +10,6 @@ import asyncio
 import logging
 import random
 import time
-from threading import Lock
 from typing import Any, Awaitable, Callable
 
 logger = logging.getLogger(__name__)
@@ -38,34 +37,28 @@ class ProactiveReplier:
         self._llm = llm_client
         # per-session 锁，防止并发时重复触发
         self._session_locks: dict[str, asyncio.Lock] = {}
-        self._global_lock = Lock()
+        self._global_lock = asyncio.Lock()
 
-    def should_reply(self, session_id: str) -> bool:
-        """检查是否应该触发主动回复（不设置冷却标记）。
-
-        使用 should_reply_and_mark() 进行原子检查+标记。
-        此方法保留用于统计/诊断场景。
-        """
+    async def should_reply(self, session_id: str) -> bool:
+        """检查是否应该触发主动回复（不设置冷却标记）。"""
         if not self._personality.proactive_enabled:
             return False
         if random.random() > self._personality.proactive_probability:
             return False
-        last = self._memory.get_last_proactive_time(session_id)
+        last = await self._memory.get_last_proactive_time(session_id)
         now = time.time()
         return (now - last) >= self._personality.proactive_cooldown
 
-    def should_reply_and_mark(self, session_id: str) -> bool:
+    async def should_reply_and_mark(self, session_id: str) -> bool:
         """原子检查 + 设置冷却标记。
-
-        在 asyncio 事件循环中执行，需要由调用方在 loop 中 await。
 
         Returns:
             是否允许主动回复。
         """
-        if not self.should_reply(session_id):
+        if not await self.should_reply(session_id):
             return False
-        # 通过检查后立即标记冷却
-        self._memory.set_last_proactive_time(session_id, time.time())
+        # 通过检查后立即标记冷却（持有 session 锁期间原子操作）
+        await self._memory.set_last_proactive_time(session_id, time.time())
         return True
 
     async def generate_and_reply(
@@ -125,9 +118,9 @@ class ProactiveReplier:
         except Exception:
             logger.exception("Failed to send proactive reply")
 
-    def _get_lock(self, session_id: str) -> asyncio.Lock:
+    async def _get_lock(self, session_id: str) -> asyncio.Lock:
         """获取或创建 session 级别的 asyncio 锁。"""
-        with self._global_lock:
+        async with self._global_lock:
             if session_id not in self._session_locks:
                 self._session_locks[session_id] = asyncio.Lock()
             return self._session_locks[session_id]

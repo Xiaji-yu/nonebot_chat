@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import ValidationError
 
 from .config import ChatConfig, PipelineConfig
 
@@ -45,7 +46,7 @@ class Personality:
             return
         try:
             self._raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        except Exception as exc:
+        except (OSError, yaml.YAMLError) as exc:
             logger.error("Failed to load chat config from %s: %s", path, exc)
             self._raw = {}
 
@@ -192,6 +193,6 @@ class Personality:
         """Pipeline 配置（从 YAML 加载）。"""
         try:
             return PipelineConfig(**self._pipeline_cfg)
-        except Exception as exc:
+        except (yaml.YAMLError, ValidationError) as exc:
             logger.warning("Invalid pipeline config, using defaults: %s", exc)
             return PipelineConfig()

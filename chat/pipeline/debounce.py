@@ -28,6 +28,7 @@ class Debouncer:
         self._window: float = float(debounce_config.window)
         # session_id -> (task, messages)
         self._pending: dict[str, tuple[asyncio.Task | None, list[str]]] = {}
+        self._lock = asyncio.Lock()
 
     def is_enabled(self) -> bool:
         """是否启用防抖。"""
@@ -50,20 +51,21 @@ class Debouncer:
             await reply_callback(message)
             return
 
-        # 获取或创建会话条目
-        if session_id not in self._pending:
-            self._pending[session_id] = (None, [])
+        # 获取或创建会话条目（加锁防止并发竞态）
+        async with self._lock:
+            if session_id not in self._pending:
+                self._pending[session_id] = (None, [])
 
-        task, messages = self._pending[session_id]
-        messages.append(message)
+            task, messages = self._pending[session_id]
+            messages.append(message)
 
-        # 取消已有计时器
-        if task is not None:
-            task.cancel()
+            # 取消已有计时器
+            if task is not None:
+                task.cancel()
 
-        # 设置新计时器
-        new_task = asyncio.create_task(self._wait_and_flush(session_id, reply_callback))
-        self._pending[session_id] = (new_task, messages)
+            # 设置新计时器
+            new_task = asyncio.create_task(self._wait_and_flush(session_id, reply_callback))
+            self._pending[session_id] = (new_task, messages)
 
     async def _wait_and_flush(self, session_id: str, reply_callback: SendFunc) -> None:
         """等待防抖窗口后发送合并回复。"""
@@ -72,9 +74,12 @@ class Debouncer:
         except asyncio.CancelledError:
             return
 
-        entry = self._pending.pop(session_id, None)
-        if entry is None:
+        # 身份校验：只有当前活跃 task 才能弹出条目
+        # 防止被取消的旧 task 弹出新 task 的条目
+        entry = self._pending.get(session_id)
+        if entry is None or entry[0] is not self:
             return
+        self._pending.pop(session_id, None)
         _, messages = entry
         if not messages:
             return

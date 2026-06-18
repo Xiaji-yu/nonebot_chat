@@ -83,9 +83,9 @@ class Pipeline:
             group_id = str(group_id)
 
         # Stage 0: 休眠检测
-        if self._sleep.is_sleeping():
+        if await self._sleep.is_sleeping():
             is_mention = self._trigger.is_mention(event)
-            if not is_mention or not self._sleep.is_override_allowed():
+            if not is_mention or not await self._sleep.is_override_allowed():
                 logger.debug("Dropped: sleeping mode, no mention override")
                 return
             logger.debug("Sleep override by mention")

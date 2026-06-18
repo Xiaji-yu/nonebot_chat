@@ -31,22 +31,23 @@ class SleepController:
         self._manual_sleeping: bool = False
         self._lock = asyncio.Lock()
 
-    def is_sleeping(self) -> bool:
-        """检查当前是否处于休眠状态。"""
-        try:
-            if not self._cfg.enabled:
+    async def is_sleeping(self) -> bool:
+        """检查当前是否处于休眠状态（加锁保证读写一致）。"""
+        async with self._lock:
+            try:
+                if not self._cfg.enabled:
+                    return False
+                if self._cfg.mode == "manual":
+                    return self._manual_sleeping
+                if self._cfg.mode == "schedule":
+                    return self._is_in_schedule()
+                logger.warning("Unknown sleep mode: %s", self._cfg.mode)
                 return False
-            if self._cfg.mode == "manual":
-                return self._manual_sleeping
-            if self._cfg.mode == "schedule":
-                return self._is_in_schedule()
-            logger.warning("Unknown sleep mode: %s", self._cfg.mode)
-            return False
-        except AttributeError as exc:
-            logger.warning("Sleep config missing attributes: %s", exc)
-            return False
+            except AttributeError as exc:
+                logger.warning("Sleep config missing attributes: %s", exc)
+                return False
 
-    def is_override_allowed(self) -> bool:
+    async def is_override_allowed(self) -> bool:
         """休眠期间 @mention 是否允许唤醒。"""
         try:
             return bool(self._cfg.override_by_mention)

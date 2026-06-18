@@ -84,11 +84,11 @@ class MessageFormatter:
         """转义 CQ Code 参数中的特殊字符。
 
         OneBot CQ 参数以逗号分隔、方括号包裹，
-        用户内容中的 \, ] , 会导致参数逃逸。
+        用户内容中的 \\, ], , 会导致参数逃逸。
         """
-        text = text.replace("\\", "\\\\")
-        text = text.replace(",", "\\,")
-        text = text.replace("]", "\\]")
+        text = text.replace("\\", r"\\\\")
+        text = text.replace(",", r"\,")
+        text = text.replace("]", r"\]")
         return text
 
     def _split(self, text: str, max_len: int) -> list[str]:

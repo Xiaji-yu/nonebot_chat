@@ -65,7 +65,7 @@ class AIDispatcher:
                 await self._memory.end_distill(session_id)
 
         # 构建消息列表
-        messages = self._build_messages(session_id, user_input, trigger_type)
+        messages = await self._build_messages(session_id, user_input, trigger_type)
 
         # 调用 LLM
         reply = await self._llm.chat(
@@ -78,7 +78,7 @@ class AIDispatcher:
 
         return reply
 
-    def _build_messages(
+    async def _build_messages(
         self,
         session_id: str,
         user_input: str,

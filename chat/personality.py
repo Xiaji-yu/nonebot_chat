@@ -104,7 +104,12 @@ class Personality:
 
     @property
     def llm_api_key(self) -> str:
-        return self._llm_cfg.get("api_key", "")
+        """API Key。优先从环境变量读取，回退到配置文件。"""
+        return (
+            os.environ.get("OPENAI_API_KEY", "")
+            or os.environ.get("LLM_API_KEY", "")
+            or self._llm_cfg.get("api_key", "")
+        )
 
     @property
     def llm_max_tokens(self) -> int:

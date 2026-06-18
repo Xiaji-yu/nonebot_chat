@@ -120,13 +120,19 @@ class Pipeline:
 
         # Stage 6: 防抖合并
         if self._cfg.debounce.enabled:
-            await self._debounce.submit(session_id, text, send_func)
+            original_send = send_func
+
+            async def _send_and_proactive(text: str) -> None:
+                await original_send(text)
+                await self._maybe_proactive(session_id, original_send)
+
+            await self._debounce.submit(session_id, text, _send_and_proactive)
             return
 
         # 防抖关闭：直接走触发检测 → AI 派发
         await self._process_once(event, session_id, text, send_func)
 
-        # Stage 9: 主动回复（经过 sleep/access/ratelimit 检查后）
+        # 主动回复（经过 sleep/access/ratelimit 检查后）
         await self._maybe_proactive(session_id, send_func)
 
     def set_proactive(self, proactive: Any) -> None:
@@ -154,9 +160,6 @@ class Pipeline:
         sender = MessageSender(send_func)
         parts = self._formatter.format(reply)
         await sender.send_batch(parts)
-
-        # Stage 9: 主动回复（继承 sleep/access/ratelimit 检查）
-        await self._maybe_proactive(session_id, send_func)
 
     async def _maybe_proactive(self, session_id: str, send_func: Any) -> None:
         """条件性主动回复。经过 sleep/access/ratelimit 检查。"""

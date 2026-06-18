@@ -172,3 +172,10 @@ class MemoryStore:
     def session_count(self) -> int:
         """当前活跃会话数。"""
         return len(self._sessions)
+
+    def get_core_memory_count(self, session_id: str) -> int:
+        """获取指定会话的核心记忆条数。"""
+        mem = self._sessions.get(session_id)
+        if mem is None:
+            return 0
+        return len(mem.core_memory)

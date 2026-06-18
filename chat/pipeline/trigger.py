@@ -43,6 +43,11 @@ class TriggerDetector:
         if self._mode == self.MODE_KEYWORD and not self._keywords:
             raise ValueError("keyword trigger mode requires at least one keyword")
 
+    @property
+    def mode(self) -> str:
+        """当前触发模式。"""
+        return self._mode
+
     def detect(self, event: Any) -> tuple[bool, str]:
         """检测消息是否满足触发条件。
 

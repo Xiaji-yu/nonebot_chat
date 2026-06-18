@@ -189,14 +189,14 @@ class Pipeline:
     async def _send_status(self, session_id: str, send_func: Any) -> None:
         """发送状态信息。"""
         mem_count = len(await self._memory_store.get_history(session_id))
-        core_count = len(self._memory_store._get_or_create(session_id).core_memory)
-        sleeping = self._sleep.is_sleeping()
+        core_count = self._memory_store.get_core_memory_count(session_id)
+        sleeping = await self._sleep.is_sleeping()
         status_text = (
             f"📊 状态报告\n"
             f"  会话消息: {mem_count} 条\n"
             f"  核心记忆: {core_count} 条\n"
             f"  休眠模式: {'开启 😴' if sleeping else '关闭 🌅'}\n"
-            f"  触发模式: {self._trigger._mode}"
+            f"  触发模式: {self._trigger.mode}"
         )
         await send_func(status_text)
 

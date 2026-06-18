@@ -40,3 +40,60 @@ proactive:
   probability: 0.1
   cooldown: 300
   check_interval: 60
+
+# ---------- Pipeline 配置 ----------
+pipeline:
+  # 休眠模式
+  sleep:
+    enabled: false
+    mode: "schedule"
+    schedule:
+      start: "23:00"
+      end: "08:00"
+    override_by_mention: true
+
+  # 去重
+  dedup:
+    enabled: true
+    window: 5
+
+  # 黑白名单
+  access:
+    mode: "none"
+    users: []
+    groups: []
+
+  # 静默关键词
+  silent:
+    enabled: true
+    keywords:
+      - "闭嘴"
+      - "别回"
+      - "silent"
+
+  # 频控
+  ratelimit:
+    enabled: true
+    per_session: 3
+    window: 10
+
+  # 触发检测
+  trigger:
+    mode: "keyword"
+    keywords:
+      - "小助手"
+      - "bot"
+
+  # 管理命令
+  admin:
+    enabled: true
+
+  # 回复防抖合并
+  debounce:
+    enabled: true
+    window: 3
+
+  # 消息格式化
+  format:
+    max_length: 500
+    mode: "plain"

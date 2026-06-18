@@ -7,6 +7,7 @@
 __author__ = "Xiaji-yu"
 
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -20,6 +21,7 @@ class PersonalityConfig(BaseModel):
     system_prompt: str = (
         "你是一个友善、聪明的助手，名叫小助手。"
         "请用简洁、自然的语气回复，避免过于正式或机械的表达。"
+        "适当使用 emoji，但不要过度。记住和用户的历史对话上下文。"
     )
     """系统提示词（System Prompt），定义 AI 的人格和行为准则。"""
 
@@ -88,6 +90,131 @@ class ProactiveConfig(BaseModel):
     """主动回复检查间隔（秒）。"""
 
 
+# ── Pipeline 配置 ──────────────────────────────────────────────────
+
+class DedupConfig(BaseModel):
+    """去重配置。"""
+
+    enabled: bool = True
+    """是否启用去重。"""
+
+    window: int = Field(default=5, ge=1, le=60)
+    """时间窗口（秒），相同内容在此窗口内忽略。"""
+
+
+class AccessConfig(BaseModel):
+    """黑白名单配置。"""
+
+    mode: str = Field(default="none")
+    """访问模式：whitelist（白名单）、blacklist（黑名单）、none（不过滤）。"""
+
+    users: list[str] = []
+    """用户 ID 列表（字符串形式）。"""
+
+    groups: list[str] = []
+    """群 ID 列表（字符串形式）。"""
+
+
+class SilentConfig(BaseModel):
+    """静默关键词配置。"""
+
+    enabled: bool = True
+    """是否启用静默关键词。"""
+
+    keywords: list[str] = ["闭嘴", "别回", "silent"]
+    """静默关键词列表，命中则不回复。"""
+
+
+class RateLimitConfig(BaseModel):
+    """频控配置。"""
+
+    enabled: bool = True
+    """是否启用频控。"""
+
+    per_session: int = Field(default=3, ge=1, le=100)
+    """每 N 秒最多触发一次。"""
+
+    window: int = Field(default=10, ge=1, le=300)
+    """时间窗口（秒）。"""
+
+
+class TriggerConfig(BaseModel):
+    """触发检测配置。"""
+
+    mode: str = Field(default="keyword")
+    """触发模式：mention（@提及）、keyword（关键词）、spectator（旁观模式）。"""
+
+    keywords: list[str] = ["小助手", "bot"]
+    """关键词列表（keyword 模式下生效）。"""
+
+
+class SleepScheduleConfig(BaseModel):
+    """休眠时间表配置。"""
+
+    start: str = "23:00"
+    """休眠开始时间（HH:MM）。"""
+
+    end: str = "08:00"
+    """休眠结束时间（HH:MM）。"""
+
+
+class SleepConfig(BaseModel):
+    """休眠模式配置。"""
+
+    enabled: bool = False
+    """是否启用休眠模式。"""
+
+    mode: str = Field(default="schedule")
+    """休眠模式：schedule（定时）、manual（手动开关）。"""
+
+    schedule: SleepScheduleConfig = Field(default_factory=SleepScheduleConfig)
+    """定时休眠配置（schedule 模式生效）。"""
+
+    override_by_mention: bool = True
+    """@mention 是否可临时唤醒（休眠期间）。"""
+
+
+class AdminConfig(BaseModel):
+    """管理命令配置。"""
+
+    enabled: bool = True
+    """是否启用管理命令。"""
+
+
+class DebounceConfig(BaseModel):
+    """回复防抖合并配置。"""
+
+    enabled: bool = True
+    """是否启用防抖。"""
+
+    window: int = Field(default=3, ge=1, le=30)
+    """防抖窗口（秒），窗口内消息合并为一条回复。"""
+
+
+class FormatConfig(BaseModel):
+    """消息格式化配置。"""
+
+    max_length: int = Field(default=500, ge=100, le=2000)
+    """单条消息最大长度。"""
+
+    mode: str = Field(default="plain")
+    """格式化模式：plain（纯文本）、markdown（Markdown）。"""
+
+
+class PipelineConfig(BaseModel):
+    """Pipeline 各阶段配置聚合。"""
+
+    sleep: SleepConfig = Field(default_factory=SleepConfig)
+    dedup: DedupConfig = Field(default_factory=DedupConfig)
+    access: AccessConfig = Field(default_factory=AccessConfig)
+    silent: SilentConfig = Field(default_factory=SilentConfig)
+    ratelimit: RateLimitConfig = Field(default_factory=RateLimitConfig)
+    admin: AdminConfig = Field(default_factory=AdminConfig)
+    trigger: TriggerConfig = Field(default_factory=TriggerConfig)
+    debounce: DebounceConfig = Field(default_factory=DebounceConfig)
+    format: FormatConfig = Field(default_factory=FormatConfig)
+
+
 class ChatConfig(BaseModel):
     """聊天插件总配置。
 
@@ -105,3 +232,7 @@ class ChatConfig(BaseModel):
 
     only_superusers: bool = True
     """是否仅允许超级用户使用聊天功能。"""
+
+    # PipelineConfig 保留结构定义，但实际从 chat_config.yaml 加载
+    pipeline: Any = None  # type: ignore[assignment]
+    """Pipeline 各阶段配置。"""

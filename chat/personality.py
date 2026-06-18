@@ -12,7 +12,7 @@ from typing import Any
 
 import yaml
 
-from .config import ChatConfig
+from .config import ChatConfig, PipelineConfig
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,7 @@ class Personality:
         self._temp_cfg = self._raw.get("temperature", {})
         self._memory_cfg = self._raw.get("memory", {})
         self._proactive_cfg = self._raw.get("proactive", {})
+        self._pipeline_cfg = self._raw.get("pipeline", {})
 
     # ------------------------------------------------------------------
     # Personality
@@ -176,3 +177,16 @@ class Personality:
     @property
     def proactive_check_interval(self) -> int:
         return int(self._proactive_cfg.get("check_interval", 60))
+
+    # ------------------------------------------------------------------
+    # Pipeline config
+    # ------------------------------------------------------------------
+
+    @property
+    def pipeline_config(self) -> PipelineConfig:
+        """Pipeline 配置（从 YAML 加载）。"""
+        try:
+            return PipelineConfig(**self._pipeline_cfg)
+        except Exception as exc:
+            logger.warning("Invalid pipeline config, using defaults: %s", exc)
+            return PipelineConfig()

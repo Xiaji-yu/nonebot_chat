@@ -1,0 +1,42 @@
+# ============================================================
+#  聊天插件配置文件
+#  所有用户可见的可调参数都在这里，修改后重启机器人生效
+# ============================================================
+
+# ---------- 人格配置 ----------
+personality:
+  name: "小助手"
+  system_prompt: |
+    你是一个友善、聪明的助手，名叫小助手。
+    请用简洁、自然的语气回复，避免过于正式或机械的表达。
+    适当使用 emoji，但不要过度。记住和用户的历史对话上下文。
+  wake_words:
+    - "小助手"
+    - "bot"
+
+# ---------- LLM 配置 ----------
+llm:
+  base_url: "http://localhost:11434/v1"
+  model: "llama2"
+  api_key: ""
+  max_tokens: 1000
+  timeout: 30
+
+# ---------- 温度配置 ----------
+temperature:
+  default: 0.7
+  proactive_min: 0.5
+  proactive_max: 1.0
+
+# ---------- 记忆系统 ----------
+memory:
+  max_history: 50
+  distillation_threshold: 40
+  core_memory_max: 10
+
+# ---------- 主动回复 ----------
+proactive:
+  enabled: true
+  probability: 0.1
+  cooldown: 300
+  check_interval: 60

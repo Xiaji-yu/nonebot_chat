@@ -10,6 +10,7 @@ import asyncio
 import logging
 import random
 import time
+import weakref
 from typing import Any, Awaitable, Callable
 
 logger = logging.getLogger(__name__)
@@ -35,12 +36,14 @@ class ProactiveReplier:
         self._personality = personality
         self._memory = memory_store
         self._llm = llm_client
-        # per-session 锁，防止并发时重复触发
-        self._session_locks: dict[str, asyncio.Lock] = {}
+        # per-session 锁（弱引用，无活跃引用时自动回收，防止内存泄漏）
+        self._session_locks: "weakref.WeakValueDictionary[str, asyncio.Lock]" = (
+            weakref.WeakValueDictionary()
+        )
         self._global_lock = asyncio.Lock()
 
     async def should_reply(self, session_id: str) -> bool:
-        """检查是否应该触发主动回复（不设置冷却标记）。"""
+        """纯检查，无副作用。供 should_reply_and_mark 内部调用。"""
         if not self._personality.proactive_enabled:
             return False
         if random.random() > self._personality.proactive_probability:
@@ -50,16 +53,17 @@ class ProactiveReplier:
         return (now - last) >= self._personality.proactive_cooldown
 
     async def should_reply_and_mark(self, session_id: str) -> bool:
-        """原子检查 + 设置冷却标记。
+        """原子检查 + 设置冷却标记（在 session 锁内完成 check-and-set）。
 
         Returns:
             是否允许主动回复。
         """
-        if not await self.should_reply(session_id):
-            return False
-        # 通过检查后立即标记冷却（持有 session 锁期间原子操作）
-        await self._memory.set_last_proactive_time(session_id, time.time())
-        return True
+        lock = await self._get_lock(session_id)
+        async with lock:
+            if not await self.should_reply(session_id):
+                return False
+            await self._memory.set_last_proactive_time(session_id, time.time())
+            return True
 
     async def generate_and_reply(
         self,
@@ -76,17 +80,15 @@ class ProactiveReplier:
             bot: Bot 实例（send_func 为 None 时使用）。
             event: 消息事件（bot.send 需要）。
         """
-        # 使用 per-session 锁防止并发重复触发
-        lock = self._get_lock(session_id)
-        async with lock:
-            if not self.should_reply_and_mark(session_id):
-                return
+        # 原子检查 + 标记冷却（锁内仅做决策，不阻塞 LLM 调用）
+        if not await self.should_reply_and_mark(session_id):
+            return
 
-            reply = await self._generate()
-            if not reply:
-                return
+        reply = await self._generate()
+        if not reply:
+            return
 
-            await self._send(reply, send_func, bot, event)
+        await self._send(reply, send_func, bot, event)
 
     async def _generate(self) -> str | None:
         """调用 LLM 生成主动回复文本。"""

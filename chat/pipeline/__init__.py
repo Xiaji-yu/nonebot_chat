@@ -15,7 +15,7 @@ from .access import AccessController
 from .silent import SilentFilter
 from .ratelimit import RateLimiter
 from .trigger import TriggerDetector
-from .admin import AdminInterceptor
+from .admin import AdminInterceptor, CMD_CLEAR_MEMORY, CMD_STATUS, CMD_SLEEP, CMD_WAKE
 from .dispatcher import AIDispatcher
 from .debounce import Debouncer
 from .formatter import MessageFormatter
@@ -171,17 +171,17 @@ class Pipeline:
 
     async def _handle_admin(self, cmd: str, session_id: str, send_func: Any) -> None:
         """处理管理命令。"""
-        if cmd == "__CLEAR_MEMORY__":
+        if cmd == CMD_CLEAR_MEMORY:
             self._memory_store.clear_session(session_id)
             await send_func("记忆已清空 ✓")
-        elif cmd == "__STATUS__":
+        elif cmd == CMD_STATUS:
             await self._send_status(session_id, send_func)
-        elif cmd == "__SLEEP__":
-            sleeping = self._sleep.toggle()
+        elif cmd == CMD_SLEEP:
+            sleeping = await self._sleep.toggle()
             state = "已进入休眠模式 😴" if sleeping else "已唤醒 🌅"
             await send_func(state)
-        elif cmd == "__WAKE__":
-            self._sleep.force_wake()
+        elif cmd == CMD_WAKE:
+            await self._sleep.force_wake()
             await send_func("已强制唤醒 🌅")
         else:
             await send_func(cmd)

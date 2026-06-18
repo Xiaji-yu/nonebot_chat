@@ -15,6 +15,12 @@ logger = logging.getLogger(__name__)
 SendFunc = Callable[[str], Awaitable[Any]]
 AdminHandler = Callable[[str], Awaitable[str | None]]
 
+# 管理命令 sentinel（pipeline/__init__.py 中匹配）
+CMD_CLEAR_MEMORY = "__CLEAR_MEMORY__"
+CMD_STATUS = "__STATUS__"
+CMD_SLEEP = "__SLEEP__"
+CMD_WAKE = "__WAKE__"
+
 
 class AdminInterceptor:
     """管理命令拦截器。
@@ -78,11 +84,11 @@ class AdminInterceptor:
     def _handle_builtin(self, cmd: str, args: str) -> str | None:
         """处理内置命令（返回标记，由 Pipeline 执行副作用）。"""
         if cmd == "clear_memory":
-            return "__CLEAR_MEMORY__"
+            return CMD_CLEAR_MEMORY
         if cmd == "status":
-            return "__STATUS__"
+            return CMD_STATUS
         if cmd == "sleep":
-            return "__SLEEP__"
+            return CMD_SLEEP
         if cmd == "wake":
-            return "__WAKE__"
+            return CMD_WAKE
         return None

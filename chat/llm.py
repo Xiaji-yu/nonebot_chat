@@ -6,7 +6,6 @@
 
 __author__ = "Xiaji-yu"
 
-import json
 import logging
 from typing import Any
 

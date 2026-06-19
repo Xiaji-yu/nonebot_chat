@@ -6,11 +6,10 @@
 
 __author__ = "Xiaji-yu"
 
+import asyncio
 import logging
 import time
 from typing import Any
-
-import asyncio
 
 logger = logging.getLogger(__name__)
 

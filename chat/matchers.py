@@ -8,12 +8,13 @@ __author__ = "Xiaji-yu"
 
 import hashlib
 import logging
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from .config import ChatConfig
-from .personality import Personality
 from .llm import LLMClient
-from .memory import MemoryStore, MemoryDistiller
+from .memory import MemoryDistiller, MemoryStore
+from .personality import Personality
 from .pipeline import Pipeline
 from .proactive import ProactiveReplier
 

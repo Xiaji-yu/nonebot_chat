@@ -10,7 +10,6 @@ import asyncio
 import logging
 import random
 import time
-import weakref
 from typing import Any, Awaitable, Callable
 
 logger = logging.getLogger(__name__)
@@ -36,11 +35,9 @@ class ProactiveReplier:
         self._personality = personality
         self._memory = memory_store
         self._llm = llm_client
-        # per-session 锁（弱引用，无活跃引用时自动回收，防止内存泄漏）
-        self._session_locks: "weakref.WeakValueDictionary[str, asyncio.Lock]" = (
-            weakref.WeakValueDictionary()
-        )
-        self._global_lock = asyncio.Lock()
+        # per-session 锁（普通 dict，外部强引用在持有期间防止 GC）
+        self._session_locks: dict[str, asyncio.Lock] = {}
+        self._lock = asyncio.Lock()
 
     async def should_reply(self, session_id: str) -> bool:
         """纯检查，无副作用。供 should_reply_and_mark 内部调用。"""

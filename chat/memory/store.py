@@ -111,7 +111,7 @@ class MemoryStore:
 
     async def get_history(self, session_id: str, max_count: int = 50) -> list[dict[str, Any]]:
         """获取会话历史。"""
-        return await self._get_or_create(session_id).get_history(max_count)
+        return (await self._get_or_create(session_id)).get_history(max_count)
 
     async def needs_distillation(
         self, session_id: str, max_count: int, threshold: int

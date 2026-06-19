@@ -119,7 +119,7 @@ class ProactiveReplier:
 
     async def _get_lock(self, session_id: str) -> asyncio.Lock:
         """获取或创建 session 级别的 asyncio 锁。"""
-        async with self._global_lock:
+        async with self._lock:
             if session_id not in self._session_locks:
                 self._session_locks[session_id] = asyncio.Lock()
             return self._session_locks[session_id]

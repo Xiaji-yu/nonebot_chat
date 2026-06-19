@@ -83,7 +83,17 @@ class TriggerDetector:
 
     @staticmethod
     def _is_mentioned(event: Any) -> bool:
-        """检查消息是否 @了机器人。"""
+        """检查消息是否 @了机器人。
+
+        优先使用 NoneBot 内置的 is_tome()，回退到手动 CQ 段解析。
+        """
+        # NoneBot 内置方法（v11 adapter 支持）
+        if hasattr(event, "is_tome"):
+            try:
+                return event.is_tome()  # type: ignore[no-any-return]
+            except Exception:
+                pass
+
         message = getattr(event, "message", None)
         if message is None:
             return False

@@ -113,27 +113,23 @@ class Pipeline:
             return
 
         # Stage 5: 管理命令拦截（不走 debounce，立即执行）
-        admin_reply = self._admin.intercept(text)
+        admin_reply = await self._admin.intercept(text)
         if admin_reply is not None:
             await self._handle_admin(admin_reply, session_id, send_func)
             return
 
-        # Stage 6: 防抖合并
+        # Stage 6: 防抖合并（防抖窗口内消息合并为一条，再走完整管线）
         if self._cfg.debounce.enabled:
-            original_send = send_func
 
-            async def _send_and_proactive(text: str) -> None:
-                await original_send(text)
-                await self._maybe_proactive(session_id, original_send)
+            async def _debounce_and_process(merged: str) -> None:
+                await self._process_once(event, session_id, merged, send_func)
+                await self._maybe_proactive(session_id, send_func)
 
-            await self._debounce.submit(session_id, text, _send_and_proactive)
+            await self._debounce.submit(session_id, text, _debounce_and_process)
             return
 
         # 防抖关闭：直接走触发检测 → AI 派发
         await self._process_once(event, session_id, text, send_func)
-
-        # 主动回复（经过 sleep/access/ratelimit 检查后）
-        await self._maybe_proactive(session_id, send_func)
 
     def set_proactive(self, proactive: Any) -> None:
         """注入主动回复器。"""

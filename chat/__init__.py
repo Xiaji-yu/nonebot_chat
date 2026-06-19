@@ -11,7 +11,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-__plugin_meta__: PluginMetadata | None = None
 _chat_config: ChatConfig | None = None
 _personality: Personality | None = None
 _llm_client: LLMClient | None = None

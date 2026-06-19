@@ -77,7 +77,7 @@ class Debouncer:
         # 身份校验：只有当前活跃 task 才能弹出条目
         # 防止被取消的旧 task 弹出新 task 的条目
         entry = self._pending.get(session_id)
-        if entry is None or entry[0] is not self:
+        if entry is None or entry[0] is not asyncio.current_task():
             return
         self._pending.pop(session_id, None)
         _, messages = entry

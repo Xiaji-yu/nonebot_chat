@@ -7,6 +7,7 @@
 __author__ = "Xiaji-yu"
 
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -193,6 +194,6 @@ class Personality:
         """Pipeline 配置（从 YAML 加载）。"""
         try:
             return PipelineConfig(**self._pipeline_cfg)
-        except (yaml.YAMLError, ValidationError) as exc:
+        except ValidationError as exc:
             logger.warning("Invalid pipeline config, using defaults: %s", exc)
             return PipelineConfig()

@@ -103,11 +103,11 @@ class MemoryStore:
 
     async def add_user_message(self, session_id: str, content: str) -> None:
         """添加用户消息。"""
-        self._get_or_create(session_id).add_message("user", content)
+        (await self._get_or_create(session_id)).add_message("user", content)
 
     async def add_assistant_message(self, session_id: str, content: str) -> None:
         """添加助手消息。"""
-        self._get_or_create(session_id).add_message("assistant", content)
+        (await self._get_or_create(session_id)).add_message("assistant", content)
 
     async def get_history(self, session_id: str, max_count: int = 50) -> list[dict[str, Any]]:
         """获取会话历史。"""

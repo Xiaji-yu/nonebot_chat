@@ -28,13 +28,10 @@ def make_config(enabled: bool = True, window: float = 3.0) -> object:
 
 class TestDebounceBasic:
     @pytest.mark.asyncio
-    async def test_disabled_passes_through_immediately(self) -> None:
-        """禁用时消息直接透传，不合并。"""
+    async def test_disabled_flag(self) -> None:
+        """禁用时 is_enabled() 返回 False，调用方据此跳过防抖。"""
         db = Debouncer(make_config(enabled=False))
-        callback = AsyncMock()
-
-        await db.submit("session-1", "hello", callback)
-        callback.assert_called_once_with("hello")
+        assert db.is_enabled() is False
 
     @pytest.mark.asyncio
     async def test_single_message_flushed_after_window(self) -> None:

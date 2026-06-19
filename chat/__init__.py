@@ -9,6 +9,14 @@ from __future__ import annotations
 # Author: Xiaji-yu
 import asyncio
 import logging
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .config import ChatConfig
+    from .llm import LLMClient
+    from .memory import ChatPersistence, MemoryDistiller, MemoryStore
+    from .personality import Personality
+    from .proactive import ProactiveReplier
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +145,7 @@ def _init() -> None:
         logger.info("Chat plugin shut down, memory cleared.")
 
 
-def __getattr__(name: str):  # type: ignore[override]
+def __getattr__(name: str) -> Any:  # type: ignore[override]  # PEP 562: module-level __getattr__
     """延迟导出 NoneBot 相关符号。
 
     子模块（config / personality / llm / memory / proactive / matchers）
@@ -158,7 +166,7 @@ def __getattr__(name: str):  # type: ignore[override]
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
-async def _cleanup_loop(persistence: "ChatPersistence", retention_days: int) -> None:
+async def _cleanup_loop(persistence: ChatPersistence, retention_days: int) -> None:
     """后台定时清理过期消息的循环任务。"""
     while True:
         try:

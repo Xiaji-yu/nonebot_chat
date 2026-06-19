@@ -61,8 +61,13 @@ class AIDispatcher:
         else:
             await self._memory.add_user_message(session_id, user_input)
 
-        # 原子蒸馏检查（防止并发双重蒸馏）
-        if await self._memory.try_begin_distill(session_id):
+        # 原子蒸馏检查（仅在达到阈值时获取锁，防止并发双重蒸馏）
+        needs = await self._memory.needs_distillation(
+            session_id,
+            self._personality.memory_max_history,
+            self._personality.memory_distillation_threshold,
+        )
+        if needs and await self._memory.try_begin_distill(session_id):
             try:
                 await self._distiller.distill(
                     session_id,

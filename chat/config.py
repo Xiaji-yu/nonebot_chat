@@ -8,7 +8,7 @@ __author__ = "Xiaji-yu"
 
 import re
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -280,10 +280,11 @@ class PipelineConfig(BaseModel):
 
 
 class ChatConfig(BaseModel):
-    """聊天插件总配置。
+    """聊天插件总配置（NoneBot 环境变量层）。
 
-    通过 YAML 配置文件（chat_config.yaml）加载复杂配置项，
-    同时支持 NoneBot 的 env 变量覆盖。
+    仅包含通过 NoneBot 环境变量覆盖的顶级开关。
+    详细配置（人格、LLM、Pipeline 等）从 chat_config.yaml 加载，
+    由 ChatYamlConfig 模型统一验证。
     """
 
     config_path: str = Field(
@@ -297,6 +298,19 @@ class ChatConfig(BaseModel):
     only_superusers: bool = True
     """是否仅允许超级用户使用聊天功能。"""
 
-    # PipelineConfig 保留结构定义，但实际从 chat_config.yaml 加载
-    pipeline: Any = None  # type: ignore[assignment]
-    """Pipeline 各阶段配置。"""
+
+class ChatYamlConfig(BaseModel):
+    """chat_config.yaml 的总模型 — 一次性验证所有 YAML 配置。
+
+    替代 Personality 中手动 dict 解析 + 每次属性访问时临时构造
+    Pydantic 实例的做法。所有字段均有默认值，YAML 文件缺失或
+    格式错误时自动回退。
+    """
+
+    personality: PersonalityConfig = Field(default_factory=PersonalityConfig)
+    llm: LLMConfig = Field(default_factory=LLMConfig)
+    temperature: TemperatureConfig = Field(default_factory=TemperatureConfig)
+    memory: MemoryConfig = Field(default_factory=MemoryConfig)
+    proactive: ProactiveConfig = Field(default_factory=ProactiveConfig)
+    persistence: PersistenceConfig = Field(default_factory=PersistenceConfig)
+    pipeline: PipelineConfig = Field(default_factory=PipelineConfig)

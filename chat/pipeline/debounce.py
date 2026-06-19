@@ -43,14 +43,13 @@ class Debouncer:
     ) -> None:
         """提交一条消息到防抖窗口。
 
+        调用方保证 enabled=True，否则应直接调用 reply_callback。
+
         Args:
             session_id: 会话唯一标识。
             message: 用户消息内容。
             reply_callback: 最终回复的回调函数。
         """
-        if not self._enabled:
-            await reply_callback(message)
-            return
 
         # 获取或创建会话条目（加锁防止并发竞态）
         async with self._lock:

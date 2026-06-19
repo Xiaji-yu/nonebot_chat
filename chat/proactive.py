@@ -67,16 +67,12 @@ class ProactiveReplier:
         self,
         session_id: str,
         send_func: SendFunc | None = None,
-        bot: Any = None,
-        event: Any = None,
     ) -> None:
-        """生成并发送主动回复（通过 send_func 或 bot.send）。
+        """生成并发送主动回复。
 
         Args:
             session_id: 会话 ID。
-            send_func: 异步发送函数（优先使用）。
-            bot: Bot 实例（send_func 为 None 时使用）。
-            event: 消息事件（bot.send 需要）。
+            send_func: 异步发送函数。
         """
         # 原子检查 + 标记冷却（锁内仅做决策，不阻塞 LLM 调用）
         if not await self.should_reply_and_mark(session_id):
@@ -86,7 +82,7 @@ class ProactiveReplier:
         if not reply:
             return
 
-        await self._send(reply, send_func, bot, event)
+        await self._send(reply, send_func)
 
     async def _generate(self) -> str | None:
         """调用 LLM 生成主动回复文本。"""
@@ -104,17 +100,13 @@ class ProactiveReplier:
         self,
         text: str,
         send_func: SendFunc | None,
-        bot: Any,
-        event: Any,
     ) -> None:
         """发送主动回复。"""
+        if send_func is None:
+            logger.warning("No send function for proactive reply: %.50s", text)
+            return
         try:
-            if send_func is not None:
-                await send_func(text)
-            elif bot is not None and hasattr(bot, "send"):
-                await bot.send(event, text)
-            else:
-                logger.warning("No send target for proactive reply: %.50s", text)
+            await send_func(text)
         except Exception:
             logger.exception("Failed to send proactive reply")
 

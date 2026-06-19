@@ -83,13 +83,14 @@ def setup_matchers(
     )
     pipeline.set_proactive(proactive)
 
-    # 延迟导入 NoneBot（运行时才需要）
-    from nonebot import on_command, on_message
+    # 延迟导入 NoneBot（运行时才需要，避免循环依赖）
+    from nonebot import Bot, on_command, on_message
+    from nonebot.adapters.onebot.v11.event import MessageEvent
     from nonebot.permission import SUPERUSER
 
     permission = SUPERUSER if config.only_superusers else None
 
-    def _make_send(bot: Any, event: Any) -> SendFunc:
+    def _make_send(bot: Bot, event: MessageEvent) -> SendFunc:
         """创建发送函数闭包。"""
         async def _send(text: str) -> None:
             if bot_send is not None:
@@ -108,7 +109,7 @@ def setup_matchers(
     )
 
     @cmd_matcher.handle()
-    async def _handle_command(bot: Any, event: Any) -> None:
+    async def _handle_command(bot: Bot, event: MessageEvent) -> None:
         await pipeline.process(event, get_session_id(event), _make_send(bot, event))
 
     # ── 消息匹配器（触发检测） ─────────────────────────────────────
@@ -119,7 +120,7 @@ def setup_matchers(
     )
 
     @msg_matcher.handle()
-    async def _handle_message(bot: Any, event: Any) -> None:
+    async def _handle_message(bot: Bot, event: MessageEvent) -> None:
         await pipeline.process(event, get_session_id(event), _make_send(bot, event))
 
     logger.info(

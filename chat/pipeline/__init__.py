@@ -118,18 +118,21 @@ class Pipeline:
             await self._handle_admin(admin_reply, session_id, send_func)
             return
 
+        # 私聊：无需触发检测，直接处理
+        is_private = group_id is None
+
         # Stage 6: 防抖合并（防抖窗口内消息合并为一条，再走完整管线）
         if self._cfg.debounce.enabled:
 
             async def _debounce_and_process(merged: str) -> None:
-                await self._process_once(event, session_id, merged, send_func)
+                await self._process_once(event, session_id, merged, send_func, is_private)
                 await self._maybe_proactive(session_id, send_func)
 
             await self._debounce.submit(session_id, text, _debounce_and_process)
             return
 
         # 防抖关闭：直接走触发检测 → AI 派发
-        await self._process_once(event, session_id, text, send_func)
+        await self._process_once(event, session_id, text, send_func, is_private)
 
     def set_proactive(self, proactive: Any) -> None:
         """注入主动回复器。"""
@@ -141,12 +144,20 @@ class Pipeline:
         session_id: str,
         text: str,
         send_func: Any,
+        is_private: bool = False,
     ) -> None:
-        """单次处理（触发检测 → AI 派发 → 发送）。"""
-        triggered, trigger_type = self._trigger.detect(event)
-        if not triggered:
-            logger.debug("Dropped: trigger not matched")
-            return
+        """单次处理（触发检测 → AI 派发 → 发送）。
+
+        Args:
+            is_private: 是否为私聊。私聊跳过触发检测，直接走 AI 派发。
+        """
+        if not is_private:
+            triggered, trigger_type = self._trigger.detect(event)
+            if not triggered:
+                logger.debug("Dropped: trigger not matched")
+                return
+        else:
+            trigger_type = "private"
 
         reply = await self._dispatcher.dispatch(session_id, text, trigger_type)
         if reply is None:

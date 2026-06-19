@@ -6,6 +6,7 @@ NoneBot2 智能聊天插件 — 人格驱动对话、记忆系统、主动回复
 
 - **人格系统**：通过 `chat_config.yaml` 配置 AI 人格名称、系统提示词、唤醒词
 - **记忆系统**：会话级对话历史管理，支持长对话自动蒸馏摘要
+- **持久化存储**：SQLite 存储聊天记录和蒸馏摘要，重启不丢失，7 天自动清理
 - **主动回复**：概率触发的 spontaneous 回复，带冷却时间
 - **Pipeline 架构**：可配置的消息处理流水线
   - 去重、黑白名单、静默关键词、频控
@@ -160,6 +161,28 @@ memory:
 **蒸馏机制：** 当消息数达到 `distillation_threshold` 时，调用 LLM 将旧对话浓缩为若干条核心要点，替换为 system 角色消息，释放上下文窗口。当前用户消息不受影响。
 
 **会话标识：** 群聊用 `groupId_userId`，私聊用 `userId`，不同会话独立记忆。
+
+### persistence — 持久化
+
+```yaml
+persistence:
+  enabled: true               # 是否启用
+  db_path: "chat_history.db"  # SQLite 数据库文件路径
+  retention_days: 7           # 原始消息保留天数
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `enabled` | bool | `true` | 是否启用持久化。设为 `false` 则回退到纯内存模式 |
+| `db_path` | string | `"chat_history.db"` | SQLite 数据库文件路径，相对于 bot 项目根目录 |
+| `retention_days` | int | `7` | 原始消息保留天数。过期消息在每日清理时自动删除。蒸馏摘要永久保留 |
+
+**存储内容：**
+- 每条用户/助手消息按 `session_id` + `user_id` + `group_id` 维度存储
+- 蒸馏后的摘要永久保留在 `summaries` 表
+- 支持按用户查询所有历史消息（跨会话）
+
+**清理机制：** 后台 asyncio 任务每 24 小时执行一次，删除超过 `retention_days` 天的原始消息。蒸馏摘要不受影响。
 
 ### proactive — 主动回复
 
@@ -381,7 +404,7 @@ pipeline:
 # 安装依赖
 pip install -e ".[dev]"
 
-# 运行测试
+# 运行测试 (196 个用例)
 pytest
 
 # 代码检查

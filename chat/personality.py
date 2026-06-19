@@ -34,6 +34,7 @@ class Personality:
         self._temp_cfg: dict[str, Any] = {}
         self._memory_cfg: dict[str, Any] = {}
         self._proactive_cfg: dict[str, Any] = {}
+        self._pipeline_cfg: dict[str, Any] = {}
         self._load()
 
     # ------------------------------------------------------------------
@@ -193,7 +194,7 @@ class Personality:
     def pipeline_config(self) -> PipelineConfig:
         """Pipeline 配置（从 YAML 加载）。"""
         try:
-            return PipelineConfig(**self._pipeline_cfg)
+            return PipelineConfig(**getattr(self, "_pipeline_cfg", {}))
         except ValidationError as exc:
             logger.warning("Invalid pipeline config, using defaults: %s", exc)
             return PipelineConfig()

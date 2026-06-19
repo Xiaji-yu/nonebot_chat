@@ -9,17 +9,17 @@ __author__ = "Xiaji-yu"
 import logging
 from typing import Any
 
-from .sleep import SleepController
-from .dedup import check as dedup_check
 from .access import AccessController
-from .silent import SilentFilter
-from .ratelimit import RateLimiter
-from .trigger import TriggerDetector
-from .admin import AdminInterceptor, CMD_CLEAR_MEMORY, CMD_STATUS, CMD_SLEEP, CMD_WAKE
-from .dispatcher import AIDispatcher
+from .admin import CMD_CLEAR_MEMORY, CMD_SLEEP, CMD_STATUS, CMD_WAKE, AdminInterceptor
 from .debounce import Debouncer
+from .dedup import check as dedup_check
+from .dispatcher import AIDispatcher
 from .formatter import MessageFormatter
+from .ratelimit import RateLimiter
 from .sender import MessageSender
+from .silent import SilentFilter
+from .sleep import SleepController
+from .trigger import TriggerDetector
 
 logger = logging.getLogger(__name__)
 
@@ -125,14 +125,16 @@ class Pipeline:
         if self._cfg.debounce.enabled:
 
             async def _debounce_and_process(merged: str) -> None:
-                await self._process_once(event, session_id, merged, send_func, is_private)
+                await self._process_once(
+                    event, session_id, merged, send_func, is_private, user_id, group_id,
+                )
                 await self._maybe_proactive(session_id, send_func)
 
             await self._debounce.submit(session_id, text, _debounce_and_process)
             return
 
         # 防抖关闭：直接走触发检测 → AI 派发
-        await self._process_once(event, session_id, text, send_func, is_private)
+        await self._process_once(event, session_id, text, send_func, is_private, user_id, group_id)
 
     def set_proactive(self, proactive: Any) -> None:
         """注入主动回复器。"""
@@ -145,11 +147,15 @@ class Pipeline:
         text: str,
         send_func: Any,
         is_private: bool = False,
+        user_id: str = "",
+        group_id: str | None = None,
     ) -> None:
         """单次处理（触发检测 → AI 派发 → 发送）。
 
         Args:
             is_private: 是否为私聊。私聊跳过触发检测，直接走 AI 派发。
+            user_id: 用户 ID（用于持久化）。
+            group_id: 群 ID（用于持久化）。
         """
         if not is_private:
             triggered, trigger_type = self._trigger.detect(event)
@@ -159,7 +165,9 @@ class Pipeline:
         else:
             trigger_type = "private"
 
-        reply = await self._dispatcher.dispatch(session_id, text, trigger_type)
+        reply = await self._dispatcher.dispatch(
+            session_id, text, trigger_type, user_id=user_id, group_id=group_id,
+        )
         if reply is None:
             await send_func("抱歉，我暂时无法回复，请稍后再试。")
             return

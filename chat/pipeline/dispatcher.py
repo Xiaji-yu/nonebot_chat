@@ -40,6 +40,8 @@ class AIDispatcher:
         session_id: str,
         user_input: str,
         trigger_type: str,
+        user_id: str = "",
+        group_id: str | None = None,
     ) -> str | None:
         """派发消息到 AI。
 
@@ -47,12 +49,17 @@ class AIDispatcher:
             session_id: 会话唯一标识。
             user_input: 用户输入（已清洗）。
             trigger_type: 触发类型（mention/keyword/spectator）。
+            user_id: 用户 ID（用于持久化）。
+            group_id: 群 ID（用于持久化），私聊时为 None。
 
         Returns:
             AI 回复文本，失败返回 None。
         """
-        # 存储用户消息
-        await self._memory.add_user_message(session_id, user_input)
+        # 存储用户消息（含元数据）
+        if user_id:
+            await self._memory.add_user_message_with_meta(session_id, user_id, user_input, group_id)
+        else:
+            await self._memory.add_user_message(session_id, user_input)
 
         # 原子蒸馏检查（防止并发双重蒸馏）
         if await self._memory.try_begin_distill(session_id):
@@ -74,7 +81,12 @@ class AIDispatcher:
         )
 
         if reply is not None:
-            await self._memory.add_assistant_message(session_id, reply)
+            if user_id:
+                await self._memory.add_assistant_message_with_meta(
+                    session_id, user_id, reply, group_id,
+                )
+            else:
+                await self._memory.add_assistant_message(session_id, reply)
 
         return reply
 

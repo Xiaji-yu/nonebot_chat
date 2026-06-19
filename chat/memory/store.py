@@ -6,14 +6,11 @@
 
 __author__ = "Xiaji-yu"
 
+import asyncio
 import logging
 import time
-from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
-
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -89,11 +86,18 @@ class MemoryStore:
     """全局记忆存储。
 
     按 session_id 管理独立会话，线程安全。
+    可选集成 ChatPersistence 进行持久化存储。
     """
 
-    def __init__(self) -> None:
+    def __init__(self, persistence: Any = None) -> None:
+        """初始化记忆存储。
+
+        Args:
+            persistence: 可选的 ChatPersistence 实例，用于持久化消息和摘要。
+        """
         self._sessions: dict[str, SessionMemory] = {}
         self._lock = asyncio.Lock()
+        self._persistence = persistence
 
     async def _get_or_create(self, session_id: str) -> SessionMemory:
         async with self._lock:
@@ -105,9 +109,64 @@ class MemoryStore:
         """添加用户消息。"""
         (await self._get_or_create(session_id)).add_message("user", content)
 
+    async def add_user_message_with_meta(
+        self,
+        session_id: str,
+        user_id: str,
+        content: str,
+        group_id: str | None = None,
+    ) -> None:
+        """添加用户消息（含用户/群元数据，用于持久化）。
+
+        Args:
+            session_id: 会话唯一标识。
+            user_id: 用户 ID。
+            content: 消息内容。
+            group_id: 群 ID，私聊时为 None。
+        """
+        (await self._get_or_create(session_id)).add_message("user", content)
+        self._persist_message(session_id, user_id, group_id, "user", content)
+
     async def add_assistant_message(self, session_id: str, content: str) -> None:
         """添加助手消息。"""
         (await self._get_or_create(session_id)).add_message("assistant", content)
+
+    async def add_assistant_message_with_meta(
+        self,
+        session_id: str,
+        user_id: str,
+        content: str,
+        group_id: str | None = None,
+    ) -> None:
+        """添加助手消息（含用户/群元数据，用于持久化）。
+
+        Args:
+            session_id: 会话唯一标识。
+            user_id: 用户 ID（消息来源用户）。
+            content: 消息内容。
+            group_id: 群 ID，私聊时为 None。
+        """
+        (await self._get_or_create(session_id)).add_message("assistant", content)
+        self._persist_message(session_id, user_id, group_id, "assistant", content)
+
+    def _persist_message(
+        self,
+        session_id: str,
+        user_id: str,
+        group_id: str | None,
+        role: str,
+        content: str,
+    ) -> None:
+        """旁路持久化消息（失败不阻断）。"""
+        if self._persistence is None:
+            return
+        try:
+            self._persistence.save_message(session_id, user_id, group_id, role, content)
+        except Exception:
+            logger.warning(
+                "Failed to persist message (session=%s, role=%s)",
+                session_id, role, exc_info=True,
+            )
 
     async def get_history(self, session_id: str, max_count: int = 50) -> list[dict[str, Any]]:
         """获取会话历史。"""

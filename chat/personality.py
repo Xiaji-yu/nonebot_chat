@@ -14,7 +14,7 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
-from .config import ChatConfig, PipelineConfig
+from .config import ChatConfig, PersistenceConfig, PipelineConfig
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,7 @@ class Personality:
         self._memory_cfg: dict[str, Any] = {}
         self._proactive_cfg: dict[str, Any] = {}
         self._pipeline_cfg: dict[str, Any] = {}
+        self._persistence_cfg: dict[str, Any] = {}
         self._load()
 
     # ------------------------------------------------------------------
@@ -58,6 +59,7 @@ class Personality:
         self._memory_cfg = self._raw.get("memory", {})
         self._proactive_cfg = self._raw.get("proactive", {})
         self._pipeline_cfg = self._raw.get("pipeline", {})
+        self._persistence_cfg = self._raw.get("persistence", {})
 
     # ------------------------------------------------------------------
     # Personality
@@ -198,3 +200,12 @@ class Personality:
         except ValidationError as exc:
             logger.warning("Invalid pipeline config, using defaults: %s", exc)
             return PipelineConfig()
+
+    @property
+    def persistence_config(self) -> PersistenceConfig:
+        """持久化配置（从 YAML 加载）。"""
+        try:
+            return PersistenceConfig(**self._persistence_cfg)
+        except ValidationError as exc:
+            logger.warning("Invalid persistence config, using defaults: %s", exc)
+            return PersistenceConfig()

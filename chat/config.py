@@ -242,6 +242,19 @@ class DebounceConfig(BaseModel):
     """防抖窗口（秒），窗口内消息合并为一条回复。"""
 
 
+class PersistenceConfig(BaseModel):
+    """持久化配置。"""
+
+    enabled: bool = True
+    """是否启用聊天记录持久化。"""
+
+    db_path: str = Field(default="chat_history.db")
+    """SQLite 数据库文件路径。"""
+
+    retention_days: int = Field(default=7, ge=1, le=365)
+    """原始消息保留天数。"""
+
+
 class FormatConfig(BaseModel):
     """消息格式化配置。"""
 

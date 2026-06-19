@@ -9,7 +9,7 @@ __author__ = "Xiaji-yu"
 import logging
 from typing import Any
 
-from .store import Message, MemoryStore, SessionMemory
+from .store import MemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +26,20 @@ class MemoryDistiller:
 
     当会话消息数超过阈值时，调用 LLM 将旧对话摘要为若干条核心记忆，
     替换为 system 角色的消息，释放上下文窗口。
+    蒸馏完成后自动将摘要持久化到 ChatPersistence（如果已配置）。
     """
 
-    def __init__(self, memory_store: MemoryStore, llm_client: Any) -> None:
+    def __init__(self, memory_store: MemoryStore, llm_client: Any, persistence: Any = None) -> None:
+        """初始化蒸馏器。
+
+        Args:
+            memory_store: 记忆存储实例。
+            llm_client: LLM 客户端。
+            persistence: 可选的 ChatPersistence 实例。
+        """
         self._store = memory_store
         self._llm = llm_client
+        self._persistence = persistence
 
     async def distill(
         self,
@@ -91,4 +100,12 @@ class MemoryDistiller:
                 session_id,
                 len(summaries),
             )
+            # 持久化摘要
+            if self._persistence is not None:
+                try:
+                    self._persistence.save_summaries(session_id, summaries)
+                except Exception:
+                    logger.warning(
+                        "Failed to persist summaries for session %s", session_id, exc_info=True,
+                    )
         return summaries

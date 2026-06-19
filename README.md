@@ -25,30 +25,35 @@ NoneBot2 智能聊天插件 — 人格驱动对话、记忆系统、主动回复
 
 ## 安装
 
-### 方式一：pip 安装（推荐）
+### 方式一：git clone 到 plugins 目录（推荐，服务器部署）
 
-确保在 bot 的虚拟环境中执行：
+```bash
+cd <你的bot项目>/plugins/
+git clone https://github.com/Xiaji-yu/nonebot_chat.git
+```
+
+在 `bot.py` 中加载：
+
+```python
+nonebot.load_plugin("plugins.nonebot_chat.chat")
+```
+
+将 `chat_config.yaml` 放到 `plugins/nonebot_chat/` 目录下，编辑后重启 bot 即可。
+
+### 方式二：pip 安装
 
 ```bash
 # 1. 激活虚拟环境
-source /home/xiaji/yun/.venv/bin/activate
+source <bot venv>/bin/activate
 
 # 2. 安装插件
 pip install git+https://github.com/Xiaji-yu/nonebot_chat.git
 
-# 3. 重启 bot 即可（entry point 已配置，NoneBot 自动发现）
+# 3. 在 bot.py 中加载（entry point 已配置，NoneBot 自动发现）
+# 无需手动 load_plugin，重启即可
 ```
 
-如果 venv 路径不同，替换为你实际的路径。插件安装后会出现在
-`site-packages/chat/` 下，无需手动复制文件。
-
-### 方式二：直接加载本地插件（开发用）
-
-将 `chat/` 目录放到 bot 的 `plugins/` 下，然后在 `bot.py` 中加载：
-
-```python
-nonebot.load_plugin("chat")
-```
+将 `chat_config.yaml` 放到 bot 项目根目录，通过 `CHAT_CONFIG_PATH` 环境变量指定路径。
 
 ## 配置
 

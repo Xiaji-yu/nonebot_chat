@@ -94,7 +94,7 @@ def _init() -> None:
 
     @driver.on_shutdown
     async def _on_shutdown() -> None:
-        _memory_store.clear_all()
+        await _memory_store.clear_all()
         logger.info("Chat plugin shut down, memory cleared.")
 
 

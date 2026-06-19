@@ -58,11 +58,7 @@ class RateLimiter:
 
             # 仅允许时记录时间戳
             timestamps.append(now)
-            if timestamps:
-                self._records[session_id] = timestamps
-            else:
-                # 不应到达，防御性清理
-                self._records.pop(session_id, None)
+            self._records[session_id] = timestamps
 
             return True, 0.0
 

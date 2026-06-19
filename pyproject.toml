@@ -36,6 +36,9 @@ dev = [
     "ruff>=0.3",
 ]
 
+[project.entry-points."nonebot.plugins"]
+chat = "chat"
+
 [project.urls]
 Homepage = "https://github.com/Xiaji-yu/nonebot_chat"
 Repository = "https://github.com/Xiaji-yu/nonebot_chat"

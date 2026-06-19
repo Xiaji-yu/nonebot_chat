@@ -28,7 +28,7 @@ from typing import Any
 # ── 常量 ──────────────────────────────────────────────────────────
 GITHUB_REPO = "https://github.com/Xiaji-yu/nonebot_chat"
 BRANCH = "main"
-PLUGIN_DIR_NAME = "nonebot_plugin_status"
+PLUGIN_DIR_NAME = "nonebot_chat"
 
 REQUIRED_PYTHON = (3, 10)
 
@@ -639,7 +639,7 @@ def print_setup_guide(plugin_install_dir: Path, config_path: Path) -> None:
     print("    import nonebot")
     print()
     print("    nonebot.init()")
-    print("    nonebot.load_plugin('nonebot_plugin_status.chat')")
+    print("    nonebot.load_plugin('nonebot_chat.chat')")
     print()
     print("    if __name__ == '__main__':")
     print("        nonebot.run()")
@@ -656,7 +656,7 @@ def print_setup_guide(plugin_install_dir: Path, config_path: Path) -> None:
     print()
     print("    1. 将插件目录复制到 bot 项目的 plugins/ 目录下")
     print(f"       复制: {plugin_install_dir}")
-    print("       到:   <你的bot项目>/plugins/nonebot_plugin_status/")
+    print("       到:   <你的bot项目>/plugins/nonebot_chat/")
     print()
     print("    2. 或者在 bot.py 中按上述方式加载")
     print()

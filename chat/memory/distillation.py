@@ -46,7 +46,7 @@ class MemoryDistiller:
         Returns:
             蒸馏后的摘要列表，失败返回 None。
         """
-        session = self._store._get_or_create(session_id)
+        session = await self._store._get_or_create(session_id)
         user_msgs = [m for m in session.messages if m.role in ("user", "assistant")]
         if not user_msgs:
             return None

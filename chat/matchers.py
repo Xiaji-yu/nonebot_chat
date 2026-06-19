@@ -6,6 +6,7 @@
 
 __author__ = "Xiaji-yu"
 
+import hashlib
 import logging
 from typing import Any, Awaitable, Callable
 
@@ -35,7 +36,17 @@ def get_session_id(event: Any) -> str:
         return f"g{gid}_u{uid}"
     if uid is not None:
         return f"u{uid}"
-    return str(getattr(event, "session_id", id(event)))
+    # NoneBot 标准方法，跨消息稳定
+    session_id = getattr(event, "session_id", None)
+    if session_id:
+        return str(session_id)
+    # 最后的兜底：基于事件可序列化属性的哈希（仍不理想，但比 id(event) 稳定）
+    stable_attrs = (
+        getattr(event, "self_id", ""),
+        getattr(event, "message_id", ""),
+        getattr(event, "user_id", ""),
+    )
+    return "evt_" + hashlib.md5(str(stable_attrs).encode()).hexdigest()[:12]
 
 
 def setup_matchers(
@@ -76,7 +87,7 @@ def setup_matchers(
     from nonebot import on_command, on_message
     from nonebot.permission import SUPERUSER
 
-    permission = (config.only_superusers or None) and SUPERUSER
+    permission = SUPERUSER if config.only_superusers else None
 
     def _make_send(bot: Any, event: Any) -> SendFunc:
         """创建发送函数闭包。"""

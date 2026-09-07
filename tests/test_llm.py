@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -145,14 +146,18 @@ class TestLLMClientChat:
         return mock_session
 
     @pytest.mark.asyncio
-    async def test_chat_returns_content_on_success(self) -> None:
+    async def test_chat_returns_content_on_success(self, caplog: Any) -> None:
         client = LLMClient(base_url="http://primary.com", model="m")
         mock_session = self._mock_session(self._mock_success_response("hi there"))
 
-        with patch.object(client, "_get_session", return_value=mock_session):
-            result = await client.chat([{"role": "user", "content": "hi"}])
+        with caplog.at_level(logging.INFO, logger="chat.llm"):
+            with patch.object(client, "_get_session", return_value=mock_session):
+                result = await client.chat([{"role": "user", "content": "hi"}])
 
         assert result == "hi there"
+        # 成功时应记录回复来源（主端点）
+        assert any("回复来自" in r.message for r in caplog.records)
+        assert any("主端点 m" in r.message for r in caplog.records)
 
     @pytest.mark.asyncio
     async def test_chat_returns_none_on_http_error(self) -> None:
@@ -210,18 +215,21 @@ class TestLLMClientFallback:
         return mock_session
 
     @pytest.mark.asyncio
-    async def test_falls_back_when_primary_http_error(self) -> None:
+    async def test_falls_back_when_primary_http_error(self, caplog: Any) -> None:
         client = self._client_with_fallback()
         primary_err = TestLLMClientChat._mock_error_response()
         backup_ok = TestLLMClientChat._mock_success_response("backup reply")
         mock_session = self._sequential_session(primary_err, backup_ok)
 
-        with patch.object(client, "_get_session", return_value=mock_session):
-            result = await client.chat([{"role": "user", "content": "hi"}])
+        with caplog.at_level(logging.INFO, logger="chat.llm"):
+            with patch.object(client, "_get_session", return_value=mock_session):
+                result = await client.chat([{"role": "user", "content": "hi"}])
 
         assert result == "backup reply"
         # 主 + 备用各请求一次
         assert mock_session.post.call_count == 2
+        # 成功回复来自备用端点
+        assert any("备用端点1 m2" in r.message for r in caplog.records)
 
     @pytest.mark.asyncio
     async def test_falls_back_when_primary_network_error(self) -> None:

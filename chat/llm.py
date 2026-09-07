@@ -87,6 +87,12 @@ class LLMClient:
         """全部端点（主 + 备用）。"""
         return list(self._endpoints)
 
+    def _endpoint_tag(self, idx: int, ep: Endpoint) -> str:
+        """生成端点标签：主端点 / 备用端点 N。"""
+        if idx == 0:
+            return f"主端点 {ep.model}"
+        return f"备用端点{idx} {ep.model}"
+
     async def _get_session(self) -> aiohttp.ClientSession:
         """获取或创建共享的 aiohttp session。"""
         async with self._session_lock:
@@ -152,6 +158,7 @@ class LLMClient:
             )
             result = await self._chat_once(ep, messages, temperature, max_tokens)
             if result is not None:
+                logger.info("LLM 回复来自 %s", self._endpoint_tag(idx, ep))
                 return result
             if idx < len(self._endpoints) - 1:
                 logger.warning(
@@ -236,6 +243,7 @@ class LLMClient:
                     )
                 continue
             # 端点已成功建立并产出首块 → 消费完本端点（不再切换）
+            logger.info("LLM 回复来自 %s", self._endpoint_tag(idx, ep))
             yield first
             async for chunk in stream:
                 yield chunk

@@ -32,6 +32,8 @@ personality:
 # ------------------------------------------------------------------
 #  LLM（OpenAI 兼容端点：OpenAI / Ollama / vLLM / LM Studio / DeepSeek）
 #  base_url 末尾不要加 /chat/completions
+#  fallbacks 为备用端点列表：主端点失败/超时时按顺序自动切换。
+#  每项含 base_url / model / api_key（跨服务商容灾）。
 # ------------------------------------------------------------------
 llm:
   base_url: "http://localhost:11434/v1"
@@ -39,6 +41,13 @@ llm:
   api_key: ""
   max_tokens: 1000
   timeout: 30
+  fallbacks:
+    - base_url: "https://api.deepseek.com/v1"
+      model: "deepseek-chat"
+      api_key: ""
+    # - base_url: "http://localhost:11434/v1"
+    #   model: "llama3"
+    #   api_key: ""
 
 
 # ------------------------------------------------------------------

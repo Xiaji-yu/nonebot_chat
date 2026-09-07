@@ -289,6 +289,11 @@ llm:
   api_key: ""                             # API 密钥，Ollama 可留空
   max_tokens: 1000                        # 单次生成最大 token 数
   timeout: 30                             # 请求超时（秒）
+  stream: false                           # 是否启用流式输出
+  fallbacks:                              # 备用端点（可空）
+    - base_url: "https://api.deepseek.com/v1"
+      model: "deepseek-chat"
+      api_key: ""
 ```
 
 | 字段 | 类型 | 默认值 | 说明 |
@@ -299,6 +304,7 @@ llm:
 | `max_tokens` | int | `1000` | 单次生成最大 token 数。中文约 1.5-2 字符/token |
 | `timeout` | int | `30` | 单次 API 请求超时时间（秒），范围 5-120 |
 | `stream` | bool | `false` | 是否启用流式输出。开启后首字延迟更低（需 adapter 支持） |
+| `fallbacks` | list | `[]` | 备用端点列表，每项含 `base_url`/`model`/`api_key`。主端点失败或超时时按顺序自动切换（跨服务商容灾） |
 
 ### temperature — 温度
 

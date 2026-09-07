@@ -57,6 +57,19 @@ class PersonalityConfig(BaseModel):
     """唤醒词列表。仅当消息命中唤醒词时才触发回复（主动回复除外）。"""
 
 
+class LLMEndpointConfig(BaseModel):
+    """备用 LLM 端点（fallback）配置。"""
+
+    base_url: str
+    """OpenAI 兼容 API 的基础 URL。"""
+
+    model: str
+    """模型名称。"""
+
+    api_key: str = Field(default="")
+    """API Key。空字符串表示无需认证。"""
+
+
 class LLMConfig(BaseModel):
     """LLM 客户端配置。"""
 
@@ -77,6 +90,9 @@ class LLMConfig(BaseModel):
 
     stream: bool = False
     """是否启用流式输出。开启后首字延迟更低，但 adapter 需支持增量发送。"""
+
+    fallbacks: list[LLMEndpointConfig] = Field(default=[])
+    """备用端点列表。主端点（base_url/model/api_key）失败时按顺序尝试备用端点。"""
 
 
 class TemperatureConfig(BaseModel):

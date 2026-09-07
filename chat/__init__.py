@@ -64,6 +64,7 @@ def _init() -> None:
         api_key=_personality.llm_api_key,
         max_tokens=_personality.llm_max_tokens,
         timeout=_personality.llm_timeout,
+        fallbacks=_personality.llm_fallbacks,
     )
 
     # 初始化持久化层

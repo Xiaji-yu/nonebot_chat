@@ -114,6 +114,14 @@ class Personality:
     def llm_stream(self) -> bool:
         return self._yaml.llm.stream
 
+    @property
+    def llm_fallbacks(self) -> list[tuple[str, str, str]]:
+        """备用 LLM 端点列表 [(base_url, model, api_key), ...]。"""
+        return [
+            (fb.base_url, fb.model, fb.api_key)
+            for fb in self._yaml.llm.fallbacks
+        ]
+
     # ------------------------------------------------------------------
     # Temperature
     # ------------------------------------------------------------------

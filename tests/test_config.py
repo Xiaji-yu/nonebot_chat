@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from chat.config import (
     AccessConfig,
+    LLMConfig,
     MemoryConfig,
     PipelineConfig,
     SleepScheduleConfig,
@@ -173,3 +174,31 @@ class TestPipelineConfig:
         assert pc.sleep.enabled is True
         assert pc.sleep.mode == "manual"
         assert pc.trigger.mode == "spectator"
+
+
+# ── LLMConfig fallbacks ─────────────────────────────────────────────
+
+
+class TestLLMConfigFallbacks:
+    def test_fallbacks_empty_by_default(self) -> None:
+        cfg = LLMConfig()
+        assert cfg.fallbacks == []
+
+    def test_fallbacks_parse_list(self) -> None:
+        cfg = LLMConfig(
+            fallbacks=[
+                {"base_url": "http://a.com/v1", "model": "m-a"},
+                {"base_url": "http://b.com/v1", "model": "m-b", "api_key": "k"},
+            ]
+        )
+        assert len(cfg.fallbacks) == 2
+        assert cfg.fallbacks[0].base_url == "http://a.com/v1"
+        assert cfg.fallbacks[0].model == "m-a"
+        assert cfg.fallbacks[0].api_key == ""
+        assert cfg.fallbacks[1].api_key == "k"
+
+    def test_fallback_requires_base_url_and_model(self) -> None:
+        with pytest.raises(ValidationError):
+            LLMConfig(fallbacks=[{"model": "m"}])  # 缺 base_url
+        with pytest.raises(ValidationError):
+            LLMConfig(fallbacks=[{"base_url": "http://a.com/v1"}])  # 缺 model

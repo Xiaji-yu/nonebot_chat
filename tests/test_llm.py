@@ -1,13 +1,12 @@
 """
 @Author         : Xiaji-yu
 @Date           : 2026-06-18
-@Description    : Tests for LLMClient (aiohttp OpenAI-compatible client)
+@Description    : Tests for LLMClient (aiohttp OpenAI-compatible client with fallback)
 """
 
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -19,17 +18,28 @@ from chat.llm import LLMClient
 class TestLLMClientInit:
     """Tests for LLMClient initialization and model property."""
 
-    def test_model_property_returns_model(self) -> None:
+    def test_model_property_returns_primary_model(self) -> None:
         client = LLMClient(base_url="http://example.com", model="llama2")
         assert client.model == "llama2"
 
-    def test_stores_base_url_trailing_slash_stripped(self) -> None:
-        client = LLMClient(base_url="http://example.com/v1/", model="m")
-        assert client._base_url == "http://example.com/v1"
+    def test_endpoints_contains_primary_only_by_default(self) -> None:
+        client = LLMClient(base_url="http://example.com/v1", model="m")
+        assert len(client.endpoints) == 1
+        assert client.endpoints[0].url == "http://example.com/v1/chat/completions"
 
-    def test_stores_api_key(self) -> None:
+    def test_endpoints_contains_primary_and_fallbacks(self) -> None:
+        client = LLMClient(
+            base_url="http://primary.com", model="m1",
+            fallbacks=[("http://backup.com", "m2", "k2")],
+        )
+        assert len(client.endpoints) == 2
+        assert client.endpoints[0].model == "m1"
+        assert client.endpoints[1].model == "m2"
+        assert client.endpoints[1].api_key == "k2"
+
+    def test_stores_api_key_on_primary(self) -> None:
         client = LLMClient(base_url="http://example.com", model="m", api_key="sk-123")
-        assert client._api_key == "sk-123"
+        assert client.endpoints[0].api_key == "sk-123"
 
     def test_stores_max_tokens(self) -> None:
         client = LLMClient(base_url="http://example.com", model="m", max_tokens=500)
@@ -65,14 +75,12 @@ class TestLLMClientHeaders:
     """Tests for _headers()."""
 
     def test_headers_without_api_key(self) -> None:
-        client = LLMClient(base_url="http://example.com", model="m")
-        headers = client._headers()
+        headers = LLMClient(base_url="http://example.com", model="m")._headers("")
         assert headers["Content-Type"] == "application/json"
         assert "Authorization" not in headers
 
     def test_headers_with_api_key(self) -> None:
-        client = LLMClient(base_url="http://example.com", model="m", api_key="sk-abc")
-        headers = client._headers()
+        headers = LLMClient(base_url="http://example.com", model="m")._headers("sk-abc")
         assert headers["Authorization"] == "Bearer sk-abc"
 
 
@@ -81,7 +89,7 @@ class TestLLMClientPayload:
 
     def test_payload_defaults(self) -> None:
         client = LLMClient(base_url="http://example.com", model="llama2", max_tokens=200)
-        payload = client._payload([{"role": "user", "content": "hi"}])
+        payload = client._payload("llama2", [{"role": "user", "content": "hi"}])
         assert payload["model"] == "llama2"
         assert payload["messages"] == [{"role": "user", "content": "hi"}]
         assert payload["temperature"] == 0.7
@@ -90,18 +98,18 @@ class TestLLMClientPayload:
 
     def test_payload_overrides_temperature_and_max_tokens(self) -> None:
         client = LLMClient(base_url="http://example.com", model="m")
-        payload = client._payload([], temperature=0.5, max_tokens=100)
+        payload = client._payload("m", [], temperature=0.5, max_tokens=100)
         assert payload["temperature"] == 0.5
         assert payload["max_tokens"] == 100
 
     def test_payload_falls_back_to_default_max_tokens_when_none(self) -> None:
         client = LLMClient(base_url="http://example.com", model="m", max_tokens=300)
-        payload = client._payload([])
+        payload = client._payload("m", [])
         assert payload["max_tokens"] == 300
 
     def test_payload_stream_true(self) -> None:
         client = LLMClient(base_url="http://example.com", model="m")
-        payload = client._payload([], stream=True)
+        payload = client._payload("m", [], stream=True)
         assert payload["stream"] is True
 
 
@@ -120,6 +128,15 @@ class TestLLMClientChat:
         return mock_resp
 
     @staticmethod
+    def _mock_error_response(status: int = 500, text: str = "Server Error"):
+        mock_resp = MagicMock()
+        mock_resp.status = status
+        mock_resp.text = AsyncMock(return_value=text)
+        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_resp.__aexit__ = AsyncMock(return_value=False)
+        return mock_resp
+
+    @staticmethod
     def _mock_session(response):
         mock_session = MagicMock()
         mock_session.post = MagicMock(return_value=response)
@@ -129,84 +146,189 @@ class TestLLMClientChat:
 
     @pytest.mark.asyncio
     async def test_chat_returns_content_on_success(self) -> None:
-        client = LLMClient(base_url="http://localhost:11434/v1", model="llama2")
-        mock_resp = self._mock_success_response("hi there")
-        mock_session = self._mock_session(mock_resp)
+        client = LLMClient(base_url="http://primary.com", model="m")
+        mock_session = self._mock_session(self._mock_success_response("hi there"))
 
-        with patch("chat.llm.aiohttp.ClientSession", return_value=mock_session):
+        with patch.object(client, "_get_session", return_value=mock_session):
             result = await client.chat([{"role": "user", "content": "hi"}])
 
         assert result == "hi there"
 
     @pytest.mark.asyncio
     async def test_chat_returns_none_on_http_error(self) -> None:
-        client = LLMClient(base_url="http://localhost:11434/v1", model="llama2")
-        mock_resp = MagicMock()
-        mock_resp.status = 500
-        mock_resp.text = AsyncMock(return_value="Server Error")
-        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-        mock_resp.__aexit__ = AsyncMock(return_value=False)
-        mock_session = self._mock_session(mock_resp)
+        client = LLMClient(base_url="http://primary.com", model="m")
+        mock_session = self._mock_session(self._mock_error_response())
 
-        with patch("chat.llm.aiohttp.ClientSession", return_value=mock_session):
+        with patch.object(client, "_get_session", return_value=mock_session):
             result = await client.chat([{"role": "user", "content": "hi"}])
 
         assert result is None
 
     @pytest.mark.asyncio
     async def test_chat_returns_none_on_unexpected_response_format(self) -> None:
-        client = LLMClient(base_url="http://localhost:11434/v1", model="llama2")
-        mock_resp = MagicMock()
-        mock_resp.status = 200
-        mock_resp.json = AsyncMock(return_value={"choices": []})
-        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-        mock_resp.__aexit__ = AsyncMock(return_value=False)
-        mock_session = self._mock_session(mock_resp)
+        client = LLMClient(base_url="http://primary.com", model="m")
+        resp = self._mock_success_response()
+        resp.json = AsyncMock(return_value={"choices": []})
+        mock_session = self._mock_session(resp)
 
-        with patch("chat.llm.aiohttp.ClientSession", return_value=mock_session):
+        with patch.object(client, "_get_session", return_value=mock_session):
             result = await client.chat([{"role": "user", "content": "hi"}])
 
         assert result is None
 
     @pytest.mark.asyncio
     async def test_chat_returns_none_on_network_error(self) -> None:
-        client = LLMClient(base_url="http://localhost:11434/v1", model="llama2")
+        client = LLMClient(base_url="http://primary.com", model="m")
+        mock_session = MagicMock()
+        mock_session.post = MagicMock(side_effect=asyncio.TimeoutError())
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("chat.llm.aiohttp.ClientSession") as mock_session_cls:
-            mock_session_cls.return_value.__aenter__ = AsyncMock(
-                side_effect=asyncio.TimeoutError()
-            )
-            mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+        with patch.object(client, "_get_session", return_value=mock_session):
             result = await client.chat([{"role": "user", "content": "hi"}])
 
         assert result is None
 
 
-class TestLLMClientChatStream:
-    """Tests for chat_stream() SSE interactions."""
+class TestLLMClientFallback:
+    """Tests for fallback to backup endpoints."""
 
     @staticmethod
-    def _make_async_iter(lines: list[str]) -> Any:
-        class AsyncIterator:
-            def __init__(self, items: list[str]) -> None:
+    def _client_with_fallback() -> LLMClient:
+        return LLMClient(
+            base_url="http://primary.com", model="m1",
+            fallbacks=[("http://backup.com", "m2", "k2")],
+        )
+
+    @staticmethod
+    def _sequential_session(*responses: Any) -> MagicMock:
+        """mock session，post 依序返回每个 response。"""
+        mock_session = MagicMock()
+        mock_session.post = MagicMock(side_effect=list(responses))
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+        return mock_session
+
+    @pytest.mark.asyncio
+    async def test_falls_back_when_primary_http_error(self) -> None:
+        client = self._client_with_fallback()
+        primary_err = TestLLMClientChat._mock_error_response()
+        backup_ok = TestLLMClientChat._mock_success_response("backup reply")
+        mock_session = self._sequential_session(primary_err, backup_ok)
+
+        with patch.object(client, "_get_session", return_value=mock_session):
+            result = await client.chat([{"role": "user", "content": "hi"}])
+
+        assert result == "backup reply"
+        # 主 + 备用各请求一次
+        assert mock_session.post.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_falls_back_when_primary_network_error(self) -> None:
+        client = self._client_with_fallback()
+        mock_session = MagicMock()
+        # 第一次抛网络错误，第二次成功
+        mock_session.post = MagicMock(
+            side_effect=[asyncio.TimeoutError(), TestLLMClientChat._mock_success_response("ok")]
+        )
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+
+        with patch.object(client, "_get_session", return_value=mock_session):
+            result = await client.chat([{"role": "user", "content": "hi"}])
+
+        assert result == "ok"
+        assert mock_session.post.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_all_endpoints_fail(self) -> None:
+        client = self._client_with_fallback()
+        primary_err = TestLLMClientChat._mock_error_response(500)
+        backup_err = TestLLMClientChat._mock_error_response(503)
+        mock_session = self._sequential_session(primary_err, backup_err)
+
+        with patch.object(client, "_get_session", return_value=mock_session):
+            result = await client.chat([{"role": "user", "content": "hi"}])
+
+        assert result is None
+        assert mock_session.post.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_uses_primary_when_it_succeeds(self) -> None:
+        """主端点成功时不应调用备用端点。"""
+        client = self._client_with_fallback()
+        primary_ok = TestLLMClientChat._mock_success_response("primary")
+        mock_session = self._sequential_session(primary_ok)
+
+        with patch.object(client, "_get_session", return_value=mock_session):
+            result = await client.chat([{"role": "user", "content": "hi"}])
+
+        assert result == "primary"
+        assert mock_session.post.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_health_check_true_when_primary_succeeds(self) -> None:
+        client = LLMClient(base_url="http://primary.com", model="m")
+        mock_session = TestLLMClientChat._mock_session(
+            TestLLMClientChat._mock_success_response("ok")
+        )
+
+        with patch.object(client, "_get_session", return_value=mock_session):
+            result = await client.health_check()
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_health_check_true_via_fallback(self) -> None:
+        """主端点失败但备用端点成功 → 健康检查通过。"""
+        client = self._client_with_fallback()
+        primary_err = TestLLMClientChat._mock_error_response(500)
+        backup_ok = TestLLMClientChat._mock_success_response("ok")
+        mock_session = self._sequential_session(primary_err, backup_ok)
+
+        with patch.object(client, "_get_session", return_value=mock_session):
+            result = await client.health_check()
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_health_check_false_when_all_fail(self) -> None:
+        client = self._client_with_fallback()
+        primary_err = TestLLMClientChat._mock_error_response(500)
+        backup_err = TestLLMClientChat._mock_error_response(503)
+        mock_session = self._sequential_session(primary_err, backup_err)
+
+        with patch.object(client, "_get_session", return_value=mock_session):
+            result = await client.health_check()
+
+        assert result is False
+
+
+class TestLLMClientChatStream:
+    """Tests for chat_stream() SSE interactions with fallback."""
+
+    @staticmethod
+    def _make_async_iter(lines: list[bytes]) -> Any:
+        class AsyncBytesIter:
+            def __init__(self, items: list[bytes]) -> None:
                 self._items = items
                 self._index = 0
 
-            def __aiter__(self) -> AsyncIterator:
+            def __aiter__(self) -> AsyncBytesIter:
                 return self
 
-            async def __anext__(self) -> str:
+            async def __anext__(self) -> bytes:
                 if self._index >= len(self._items):
                     raise StopAsyncIteration
                 value = self._items[self._index]
                 self._index += 1
                 return value
 
-        return AsyncIterator(lines)
+        return AsyncBytesIter(lines)
 
     @pytest.mark.asyncio
     async def test_chat_stream_yields_deltas(self) -> None:
-        client = LLMClient(base_url="http://localhost:11434/v1", model="llama2")
+        client = LLMClient(base_url="http://primary.com", model="m")
         lines = [
             b'data: {"choices":[{"delta":{"content":"a"}}]}\n',
             b'data: {"choices":[{"delta":{"content":"b"}}]}\n',
@@ -230,15 +352,28 @@ class TestLLMClientChatStream:
         assert result == ["a", "b"]
 
     @pytest.mark.asyncio
-    async def test_chat_stream_returns_none_on_http_error(self) -> None:
-        client = LLMClient(base_url="http://localhost:11434/v1", model="llama2")
-        mock_resp = MagicMock()
-        mock_resp.status = 500
-        mock_resp.text = AsyncMock(return_value="Server Error")
-        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-        mock_resp.__aexit__ = AsyncMock(return_value=False)
+    async def test_chat_stream_falls_back_on_primary_error(self) -> None:
+        """主端点建立失败 → 切备用端点并产出内容。"""
+        client = LLMClient(
+            base_url="http://primary.com", model="m1",
+            fallbacks=[("http://backup.com", "m2", "k2")],
+        )
+        primary_err = MagicMock()
+        primary_err.status = 500
+        primary_err.text = AsyncMock(return_value="Server Error")
+        primary_err.__aenter__ = AsyncMock(return_value=primary_err)
+        primary_err.__aexit__ = AsyncMock(return_value=False)
+
+        backup_ok = MagicMock()
+        backup_ok.status = 200
+        backup_ok.content = self._make_async_iter(
+            [b'data: {"choices":[{"delta":{"content":"z"}}]}\n', b"data: [DONE]\n"]
+        )
+        backup_ok.__aenter__ = AsyncMock(return_value=backup_ok)
+        backup_ok.__aexit__ = AsyncMock(return_value=False)
+
         mock_session = MagicMock()
-        mock_session.post = MagicMock(return_value=mock_resp)
+        mock_session.post = MagicMock(side_effect=[primary_err, backup_ok])
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=False)
 
@@ -247,49 +382,5 @@ class TestLLMClientChatStream:
             async for chunk in client.chat_stream([{"role": "user", "content": "hi"}]):
                 result.append(chunk)
 
-        assert result == []
-
-    @pytest.mark.asyncio
-    async def test_chat_stream_handles_network_error(self) -> None:
-        client = LLMClient(base_url="http://localhost:11434/v1", model="llama2")
-        mock_session = MagicMock()
-        mock_session.post = MagicMock(side_effect=asyncio.TimeoutError())
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-
-        with patch.object(client, "_get_session", return_value=mock_session):
-            result = []
-            async for chunk in client.chat_stream([{"role": "user", "content": "hi"}]):
-                result.append(chunk)
-
-        assert result == []
-
-
-class TestLLMClientHealthCheck:
-    """Tests for health_check()."""
-
-    @pytest.mark.asyncio
-    async def test_health_check_true_when_chat_succeeds(self) -> None:
-        client = LLMClient(base_url="http://localhost:11434/v1", model="llama2")
-        mock_resp = TestLLMClientChat._mock_success_response("ok")
-        mock_session = TestLLMClientChat._mock_session(mock_resp)
-
-        with patch("chat.llm.aiohttp.ClientSession", return_value=mock_session):
-            result = await client.health_check()
-
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_health_check_false_when_chat_fails(self) -> None:
-        client = LLMClient(base_url="http://localhost:11434/v1", model="llama2")
-        mock_resp = MagicMock()
-        mock_resp.status = 500
-        mock_resp.text = AsyncMock(return_value="error")
-        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-        mock_resp.__aexit__ = AsyncMock(return_value=False)
-        mock_session = TestLLMClientChat._mock_session(mock_resp)
-
-        with patch("chat.llm.aiohttp.ClientSession", return_value=mock_session):
-            result = await client.health_check()
-
-        assert result is False
+        assert result == ["z"]
+        assert mock_session.post.call_count == 2

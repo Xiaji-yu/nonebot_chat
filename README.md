@@ -166,7 +166,63 @@ pip uninstall nonebot-chat -y
 
 ## 配置
 
-编辑项目目录下的 `chat_config.yaml`。完整配置见下方「配置详解」章节。
+插件的配置分为**两层**，分别在两个文件里修改：
+
+| 层 | 文件 | 位置 | 控制内容 |
+|---|---|---|---|
+| 环境变量 | `.env` | bot 项目根目录 | 配置路径、顶层开关、API Key |
+| YAML 详细配置 | `chat_config.yaml` | 见下方「chat_config.yaml 放哪里」 | 人格、LLM、温度、记忆、Pipeline 全部细节 |
+
+**「配置详解」章节**逐项说明了 `chat_config.yaml` 中每个字段的含义与可选值，
+下方先说明两个文件分别放在哪里、怎么被加载。
+
+### `.env` 放哪里 / 变量清单
+
+`.env` 放在 **bot 项目根目录**（NoneBot 约定自动加载）。可配置项：
+
+| 环境变量 | 默认值 | 说明 |
+|---|---|---|
+| `CHAT_CONFIG_PATH` | 自动查找 | `chat_config.yaml` 的路径（见下） |
+| `CHAT_ONLY_SUPERUSERS` | `true` | 是否仅超级用户可用 |
+| `CHAT_CHAT_ENABLED` | `true` | 是否启用聊天功能 |
+| `LLM_API_KEY` | 空 | 访问 LLM 服务的 API Key（兼容任意 OpenAI 兼容服务，本地 Ollama 可留空） |
+
+> **兼容性说明**：API Key 读取优先级为
+> `OPENAI_API_KEY` > `LLM_API_KEY` > YAML 中的 `llm.api_key`。
+> `OPENAI_API_KEY` 作为 OpenAI 兼容生态的惯用变量名被保留读取，
+> 新配置建议统一使用 `LLM_API_KEY`。
+
+完整示例见项目根目录的 [`.env.example`](.env.example)，复制为 `.env` 修改即可。
+
+### chat_config.yaml 放哪里
+
+插件按以下顺序自动查找 `chat_config.yaml`：
+
+1. **`CHAT_CONFIG_PATH` 环境变量指向的路径**（最明确，推荐）
+2. **插件安装目录下的 `chat_config.yaml`**（git clone / 源码方式自动命中）
+3. 都找不到时使用内置默认值启动（仅开发调试，LLM 不会真正可用）
+
+对应各安装方式的操作：
+
+- **git clone 安装**：仓库自带 `chat_config.yaml`，就在
+  `plugins/nonebot_chat/chat_config.yaml`，直接编辑该文件即可。
+- **pip / uv 安装**：插件装在 `site-packages` 里没有配置文件，需要自建一份：
+
+  ```bash
+  # 从 GitHub 下载模板到 bot 项目根目录
+  curl -fsSL -o chat_config.yaml \
+    https://raw.githubusercontent.com/Xiaji-yu/nonebot_chat/main/chat_config.yaml
+  ```
+
+  然后在 `.env` 中指定路径：
+
+  ```env
+  CHAT_CONFIG_PATH=chat_config.yaml
+  ```
+
+  修改配置后**重启 bot** 生效。
+
+完整字段含义见下方「配置详解」章节。
 
 ## 管理命令
 

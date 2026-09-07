@@ -138,3 +138,27 @@ class TestDebounceTriggeredPropagation:
         # (session, text, trigger_type, ...)
         assert args[0][1] == "先触发\n追问"
         assert args[0][2] == "debounced"
+
+
+class TestMediaMessageDescribed:
+    @pytest.mark.asyncio
+    async def test_image_only_private_message_gets_media_label(self) -> None:
+        """私聊纯图片消息 → dispatch 收到的内容含 [图片] 标注而非空串。"""
+        from unittest.mock import AsyncMock, MagicMock
+
+        pipeline = _build_pipeline("keyword", ["云崽"])
+        pipeline._dispatcher.dispatch = AsyncMock(return_value="收到")
+        # 绕过防抖让内容直通 _process_once 的 dispatch
+        event = MagicMock()
+        event.get_plaintext.return_value = ""
+        event.user_id = 2224513919
+        event.group_id = None
+        event.is_tome.return_value = False
+        event.message = [{"type": "image", "data": {"url": "http://x/y.png"}}]
+
+        await pipeline._process_once(
+            event, "u2224513919", "[图片]", AsyncMock(),
+            is_private=True, user_id="2224513919", group_id=None, stream=False,
+        )
+        pipeline._dispatcher.dispatch.assert_called_once()
+        assert pipeline._dispatcher.dispatch.call_args[0][1] == "[图片]"

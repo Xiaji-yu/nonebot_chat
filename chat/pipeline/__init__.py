@@ -11,6 +11,7 @@ from typing import Any
 
 from ..log import logger
 from ..mask import mask_user
+from ..message_desc import describe as describe_message
 from .access import AccessController
 from .admin import (
     CMD_CLEAR_MEMORY,
@@ -86,6 +87,8 @@ class Pipeline:
     ) -> None:
         """执行完整 Pipeline。"""
         text = event.get_plaintext().strip()
+        # 发送给 LLM 的内容：纯文本 + 图片/引用等媒体标注
+        content = describe_message(event) or text
         user_id = str(getattr(event, "user_id", ""))
         group_id = getattr(event, "group_id", None)
         if group_id is not None:
@@ -147,7 +150,7 @@ class Pipeline:
                     await self._maybe_proactive(session_id, send_func)
 
             await self._debounce.submit(
-                session_id, text, _debounce_and_process, triggered=batch_triggered
+                session_id, content, _debounce_and_process, triggered=batch_triggered
             )
             return
 
@@ -155,7 +158,7 @@ class Pipeline:
         await self._process_once(
             event,
             session_id,
-            text,
+            content,
             send_func,
             is_private,
             user_id,

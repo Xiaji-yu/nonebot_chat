@@ -6,12 +6,10 @@
 
 __author__ = "Xiaji-yu"
 
-import logging
 from typing import Any
 
+from ..log import logger
 from .store import MemoryStore
-
-logger = logging.getLogger(__name__)
 
 # 蒸馏专用系统提示词
 DISTILL_SYSTEM_PROMPT = (
@@ -71,13 +69,13 @@ class MemoryDistiller:
         ]
 
         logger.info(
-            "Distilling session %s (%d messages) ...", session_id, len(user_msgs)
+            f"Distilling session {session_id} ({len(user_msgs)} messages) ..."
         )
 
         try:
-            response = await self._llm.chat(messages, temperature=0.3)
+            response = await self._llm.chat(messages, temperature=0.3, log_reply=False)
         except Exception as exc:
-            logger.error("Distillation failed for %s: %s", session_id, exc)
+            logger.error(f"Distillation failed for {session_id}: {exc}")
             return None
 
         if not response:
@@ -96,9 +94,8 @@ class MemoryDistiller:
             session = await self._store._get_or_create(session_id)
             session.messages.clear()
             logger.info(
-                "Distillation complete for %s: %d core memories stored.",
-                session_id,
-                len(summaries),
+                f"Distillation complete for {session_id}: "
+                f"{len(summaries)} core memories stored."
             )
             # 持久化摘要
             if self._persistence is not None:
@@ -106,6 +103,7 @@ class MemoryDistiller:
                     self._persistence.save_summaries(session_id, summaries)
                 except Exception:
                     logger.warning(
-                        "Failed to persist summaries for session %s", session_id, exc_info=True,
+                        f"Failed to persist summaries for session {session_id}",
+                        exc_info=True,
                     )
         return summaries

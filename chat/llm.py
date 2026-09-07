@@ -8,7 +8,6 @@ __author__ = "Xiaji-yu"
 
 import asyncio
 import json
-import logging
 import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -16,10 +15,7 @@ from typing import Any
 
 import aiohttp
 
-try:  # NoneBot 运行时使用 loguru（INFO 级别可见）
-    from nonebot.log import logger
-except ImportError:  # 独立运行/测试环境回退标准 logging
-    logger = logging.getLogger(__name__)
+from .log import logger
 
 # OpenAI Chat Completions 端点
 CHAT_ENDPOINT = "/chat/completions"
@@ -142,6 +138,7 @@ class LLMClient:
         messages: list[dict[str, str]],
         temperature: float = 0.7,
         max_tokens: int | None = None,
+        log_reply: bool = True,
     ) -> str | None:
         """发送聊天请求，返回助手回复文本。
 
@@ -151,27 +148,32 @@ class LLMClient:
             messages: OpenAI Chat 格式的消息列表。
             temperature: 采样温度。
             max_tokens: 最大生成 token 数，None 则使用默认值。
+            log_reply: 是否在成功时记录「LLM 回复来自」INFO。
+                内部用途（蒸馏/主动回复/健康检查）传 False，避免
+                与用户消息的真实回复混淆。
 
         Returns:
             助手回复的文本内容，全部端点失败返回 None。
         """
-        start = time.monotonic()
         for idx, ep in enumerate(self._endpoints):
             logger.debug(
                 f"LLM request: model={ep.model}, msgs={len(messages)}, "
                 f"temp={temperature:.2f} (endpoint {idx + 1}/{len(self._endpoints)})"
             )
+            start = time.monotonic()
             result = await self._chat_once(ep, messages, temperature, max_tokens)
             if result is not None:
                 elapsed = time.monotonic() - start
-                logger.info(
-                    f"LLM 回复来自 {self._endpoint_tag(idx, ep)} "
-                    f"(耗时 {elapsed:.1f}s, msgs={len(messages)})"
-                )
+                if log_reply:
+                    logger.info(
+                        f"LLM 回复来自 {self._endpoint_tag(idx, ep)} "
+                        f"(耗时 {elapsed:.1f}s, msgs={len(messages)})"
+                    )
                 return result
             if idx < len(self._endpoints) - 1:
                 logger.warning(
-                    f"LLM endpoint {ep.base_url}/{ep.model} failed, falling back to next endpoint"
+                    f"LLM endpoint {ep.base_url}/{ep.model} failed in "
+                    f"{time.monotonic() - start:.1f}s, falling back to next endpoint"
                 )
         return None
 
@@ -218,6 +220,7 @@ class LLMClient:
         messages: list[dict[str, str]],
         temperature: float = 0.7,
         max_tokens: int | None = None,
+        log_reply: bool = True,
     ) -> AsyncIterator[str]:
         """流式聊天请求，逐块返回助手回复文本。
 
@@ -228,6 +231,7 @@ class LLMClient:
             messages: OpenAI Chat 格式的消息列表。
             temperature: 采样温度。
             max_tokens: 最大生成 token 数，None 则使用默认值。
+            log_reply: 是否在成功产出首块时记录 INFO（内部用途传 False）。
 
         Yields:
             回复文本片段，全部端点失败时提前终止并返回。
@@ -237,6 +241,7 @@ class LLMClient:
                 f"LLM stream request: model={ep.model}, msgs={len(messages)} "
                 f"(endpoint {idx + 1}/{len(self._endpoints)})"
             )
+            start = time.monotonic()
             stream = self._stream_once(ep, messages, temperature, max_tokens)
             try:
                 first = await anext(stream)
@@ -244,11 +249,16 @@ class LLMClient:
                 # 该端点未能建立请求（无内容产出）→ 尝试下一个端点
                 if idx < len(self._endpoints) - 1:
                     logger.warning(
-                        f"LLM stream endpoint {ep.base_url}/{ep.model} failed to start, trying next"
+                        f"LLM stream endpoint {ep.base_url}/{ep.model} failed to start in "
+                        f"{time.monotonic() - start:.1f}s, trying next"
                     )
                 continue
             # 端点已成功建立并产出首块 → 消费完本端点（不再切换）
-            logger.info(f"LLM 回复来自 {self._endpoint_tag(idx, ep)}")
+            if log_reply:
+                logger.info(
+                    f"LLM 回复来自 {self._endpoint_tag(idx, ep)} "
+                    f"(首块 {time.monotonic() - start:.1f}s, msgs={len(messages)})"
+                )
             yield first
             async for chunk in stream:
                 yield chunk
@@ -305,11 +315,12 @@ class LLMClient:
     # ------------------------------------------------------------------
 
     async def health_check(self) -> bool:
-        """健康检查：任一端点连通即视为可用。"""
+        """健康检查：任一端点连通即视为可用（内部调用，不打回复日志）。"""
         try:
             result = await self.chat(
                 messages=[{"role": "user", "content": "hi"}],
                 max_tokens=5,
+                log_reply=False,
             )
             return result is not None
         except Exception:

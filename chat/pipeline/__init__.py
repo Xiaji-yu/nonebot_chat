@@ -131,17 +131,20 @@ class Pipeline:
 
         # Stage 6: 防抖合并（防抖窗口内消息合并为一条，再走完整管线）
         if self._cfg.debounce.enabled:
-            t_queued = time.monotonic()
+            # 群聊：先判定本条是否满足触发（@/关键词），防抖批内任一触发即处理。
+            # 私聊：恒视为触发（私聊始终回复）。
+            batch_triggered = True if is_private else self._trigger.detect(event)[0]
 
             async def _debounce_and_process(merged: str) -> None:
-                wait = time.monotonic() - t_queued
-                logger.info(f"[pipeline] 防抖等待 {wait:.1f}s 后开始处理")
                 await self._process_once(
-                    event, session_id, merged, send_func, is_private, user_id, group_id, stream,
+                    event, session_id, merged, send_func, is_private,
+                    user_id, group_id, stream, skip_trigger=True,
                 )
                 await self._maybe_proactive(session_id, send_func)
 
-            await self._debounce.submit(session_id, text, _debounce_and_process)
+            await self._debounce.submit(
+                session_id, text, _debounce_and_process, triggered=batch_triggered
+            )
             return
 
         # 防抖关闭：直接走触发检测 → AI 派发
@@ -170,6 +173,7 @@ class Pipeline:
         user_id: str = "",
         group_id: str | None = None,
         stream: bool = False,
+        skip_trigger: bool = False,
     ) -> None:
         """单次处理（触发检测 → AI 派发 → 发送）。
 
@@ -178,14 +182,18 @@ class Pipeline:
             user_id: 用户 ID（用于持久化）。
             group_id: 群 ID（用于持久化）。
             stream: 是否使用流式输出。
+            skip_trigger: 是否跳过触发检测（防抖批已由 Debouncer
+                确认批内任一消息触发时使用）。
         """
-        if not is_private:
+        if not is_private and not skip_trigger:
             triggered, trigger_type = self._trigger.detect(event)
             if not triggered:
                 logger.debug("Dropped: trigger not matched")
                 return
-        else:
+        elif is_private:
             trigger_type = "private"
+        else:
+            trigger_type = "debounced"
 
         reply = await self._dispatcher.dispatch(
             session_id, text, trigger_type, user_id=user_id, group_id=group_id, stream=stream,

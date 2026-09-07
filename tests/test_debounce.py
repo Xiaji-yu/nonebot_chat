@@ -137,3 +137,37 @@ class TestDebounceEdgeCases:
 
         db2 = Debouncer(make_config(enabled=False))
         assert db2.is_enabled() is False
+
+class TestDebounceTriggerFilter:
+    @pytest.mark.asyncio
+    async def test_batch_flushed_when_any_message_triggered(self) -> None:
+        """批内第一条 @/关键词触发，后续普通消息也应随批处理。"""
+        db = Debouncer(make_config(window=0.1))
+        callback = AsyncMock()
+
+        await db.submit("s1", "@bot 你好", callback, triggered=True)
+        await db.submit("s1", "然后呢", callback, triggered=False)  # 未触发
+
+        await asyncio.sleep(0.15)
+        callback.assert_called_once_with("@bot 你好\n然后呢")
+
+    @pytest.mark.asyncio
+    async def test_batch_dropped_when_nothing_triggered(self) -> None:
+        """批内无任何触发消息 → 整批丢弃，回调不被调用。"""
+        db = Debouncer(make_config(window=0.1))
+        callback = AsyncMock()
+
+        await db.submit("s1", "普通闲聊1", callback, triggered=False)
+        await db.submit("s1", "普通闲聊2", callback, triggered=False)
+
+        await asyncio.sleep(0.15)
+        assert callback.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_triggered_default_true_sends(self) -> None:
+        """默认（不传 triggered）应正常发送，保持通用合并器语义。"""
+        db = Debouncer(make_config(window=0.1))
+        callback = AsyncMock()
+        await db.submit("s1", "hello", callback)
+        await asyncio.sleep(0.15)
+        callback.assert_called_once_with("hello")

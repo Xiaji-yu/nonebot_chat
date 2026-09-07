@@ -150,7 +150,7 @@ class TestLLMClientChat:
         client = LLMClient(base_url="http://primary.com", model="m")
         mock_session = self._mock_session(self._mock_success_response("hi there"))
 
-        with caplog.at_level(logging.INFO, logger="chat.llm"):
+        with caplog.at_level(logging.INFO, logger="chat"):
             with patch.object(client, "_get_session", return_value=mock_session):
                 result = await client.chat([{"role": "user", "content": "hi"}])
 
@@ -221,7 +221,7 @@ class TestLLMClientFallback:
         backup_ok = TestLLMClientChat._mock_success_response("backup reply")
         mock_session = self._sequential_session(primary_err, backup_ok)
 
-        with caplog.at_level(logging.INFO, logger="chat.llm"):
+        with caplog.at_level(logging.INFO, logger="chat"):
             with patch.object(client, "_get_session", return_value=mock_session):
                 result = await client.chat([{"role": "user", "content": "hi"}])
 

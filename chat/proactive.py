@@ -7,13 +7,12 @@
 __author__ = "Xiaji-yu"
 
 import asyncio
-import logging
 import random
 import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from .log import logger
 
 # 类型别名
 SendFunc = Callable[[str], Awaitable[Any]]
@@ -94,6 +93,7 @@ class ProactiveReplier:
             messages=self._build_proactive_prompt(),
             temperature=temperature,
             max_tokens=100,
+            log_reply=False,
         )
 
     async def _send(

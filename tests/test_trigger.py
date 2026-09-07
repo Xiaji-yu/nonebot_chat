@@ -1,7 +1,7 @@
 """
 @Author         : Xiaji-yu
 @Date           : 2026-06-19
-@Description    : 触发检测测试 — mention / keyword / spectator 模式
+@Description    : 触发检测测试 — mention / keyword / mention_keyword / spectator / disabled 模式
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ class TestKeywordMode:
         assert triggered is False
 
     def test_keyword_substring_match(self) -> None:
-        """唤醒词为子串匹配。"""
+        """触发关键词为子串匹配。"""
         detector = TriggerDetector(make_config("keyword", ["bot"]))
         triggered, _ = detector.detect(make_event("robot assistant"))
         assert triggered is True

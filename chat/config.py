@@ -166,7 +166,7 @@ class ProactiveConfig(BaseModel):
     """是否启用主动回复。"""
 
     probability: float = Field(default=DEFAULT_PROACTIVE_PROBABILITY, ge=0.0, le=1.0)
-    """每条非唤醒词消息的主动回复概率。"""
+    """每条通过 Pipeline 处理的消息触发主动回复的概率。"""
 
     cooldown: int = Field(default=DEFAULT_PROACTIVE_COOLDOWN, ge=30, le=3600)
     """主动回复冷却时间（秒）。"""

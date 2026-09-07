@@ -20,6 +20,9 @@ from .log import logger
 # OpenAI Chat Completions 端点
 CHAT_ENDPOINT = "/chat/completions"
 
+# 日志中响应体/错误文本的最大展示长度（防日志爆炸）
+LOG_BODY_MAX_CHARS = 500
+
 
 @dataclass(frozen=True)
 class Endpoint:
@@ -166,7 +169,7 @@ class LLMClient:
                 elapsed = time.monotonic() - start
                 if log_reply:
                     logger.info(
-                        f"LLM 回复来自 {self._endpoint_tag(idx, ep)} "
+                        f"[llm] 回复来自 {self._endpoint_tag(idx, ep)} "
                         f"(耗时 {elapsed:.1f}s, msgs={len(messages)})"
                     )
                 return result
@@ -195,20 +198,20 @@ class LLMClient:
             ) as resp:
                 if resp.status != 200:
                     text = await resp.text()
-                    logger.error(f"LLM API error {resp.status}: {text[:500]}")
+                    logger.error(f"[llm] API error {resp.status}: {text[:LOG_BODY_MAX_CHARS]}")
                     return None
                 data = await resp.json()
         except aiohttp.ClientError as exc:
-            logger.error(f"LLM request failed: {exc}")
+            logger.error(f"[llm] request failed: {exc}")
             return None
         except Exception:
-            logger.exception("Unexpected error during LLM request")
+            logger.exception("[llm] unexpected error during LLM request")
             return None
 
         try:
             return data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError):
-            logger.error(f"Unexpected LLM response format: {str(data)[:500]}")
+            logger.error(f"[llm] unexpected response format: {str(data)[:LOG_BODY_MAX_CHARS]}")
             return None
 
     # ------------------------------------------------------------------
@@ -256,7 +259,7 @@ class LLMClient:
             # 端点已成功建立并产出首块 → 消费完本端点（不再切换）
             if log_reply:
                 logger.info(
-                    f"LLM 回复来自 {self._endpoint_tag(idx, ep)} "
+                    f"[llm] 回复来自 {self._endpoint_tag(idx, ep)} "
                     f"(首块 {time.monotonic() - start:.1f}s, msgs={len(messages)})"
                 )
             yield first
@@ -287,7 +290,9 @@ class LLMClient:
             ) as resp:
                 if resp.status != 200:
                     text = await resp.text()
-                    logger.error(f"LLM stream API error {resp.status}: {text[:500]}")
+                    logger.error(
+                        f"[llm] stream API error {resp.status}: {text[:LOG_BODY_MAX_CHARS]}"
+                    )
                     return
                 async for line in resp.content:
                     if not line:
@@ -306,9 +311,9 @@ class LLMClient:
                     except (KeyError, IndexError, TypeError, ValueError):
                         continue
         except aiohttp.ClientError as exc:
-            logger.error(f"LLM stream request failed: {exc}")
+            logger.error(f"[llm] stream request failed: {exc}")
         except Exception:
-            logger.exception("Unexpected error during LLM stream request")
+            logger.exception("[llm] unexpected error during LLM stream request")
 
     # ------------------------------------------------------------------
     # 健康检查（主端点失败时自动尝试备用端点）

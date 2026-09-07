@@ -105,9 +105,8 @@ class AIDispatcher:
                 await self._memory.add_assistant_message(session_id, reply)
 
         elapsed = time.monotonic() - start
-        logger.info(
-            f"[dispatch] 派发耗时 {elapsed:.1f}s, 回复={'有' if reply else '无'}"
-        )
+        ok = "是" if reply else "否"
+        logger.info(f"[dispatch] 耗时 {elapsed:.1f}s, ok={ok}")
         return reply
 
     async def _build_messages(

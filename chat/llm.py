@@ -15,7 +15,10 @@ from typing import Any
 
 import aiohttp
 
-logger = logging.getLogger(__name__)
+try:  # NoneBot 运行时使用 loguru（INFO 级别可见）
+    from nonebot.log import logger
+except ImportError:  # 独立运行/测试环境回退标准 logging
+    logger = logging.getLogger(__name__)
 
 # OpenAI Chat Completions 端点
 CHAT_ENDPOINT = "/chat/completions"

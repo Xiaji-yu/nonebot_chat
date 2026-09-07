@@ -113,6 +113,23 @@ class TestAccessConfig:
         assert ac.whitelist.users == []
         assert ac.blacklist.groups == []
 
+    def test_numeric_ids_coerced_to_str(self) -> None:
+        """数字 ID（QQ/群号不带引号）应自动转字符串。"""
+        ac = AccessConfig(
+            whitelist={"enabled": True, "users": [123], "groups": [1051425116, 757335552]},
+            blacklist={"users": [456789]},
+        )
+        assert ac.whitelist.users == ["123"]
+        assert ac.whitelist.groups == ["1051425116", "757335552"]
+        assert ac.blacklist.users == ["456789"]
+
+    def test_mixed_id_types_coerced_to_str(self) -> None:
+        """混合 str/int 列表应统一为 str。"""
+        ac = AccessConfig(
+            whitelist={"enabled": True, "users": ["123", 456]},
+        )
+        assert ac.whitelist.users == ["123", "456"]
+
 
 # ── TriggerConfig ──────────────────────────────────────────────────
 

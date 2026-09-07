@@ -8,9 +8,15 @@ __author__ = "Xiaji-yu"
 
 import re
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 # ── 常量 ──────────────────────────────────────────────────────────
 DEFAULT_PERSONA_NAME = "小助手"
@@ -195,6 +201,16 @@ class AccessListConfig(BaseModel):
 
     groups: list[str] = Field(default=[])
     """群 ID 列表（字符串形式）。"""
+
+    @field_validator("users", "groups", mode="before")
+    @classmethod
+    def _coerce_ids_to_str(cls, v: Any) -> Any:
+        """兼容数字 ID（QQ/群号常不带引号），统一转为字符串。"""
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return v
+        return [str(item) for item in v]
 
 
 class AccessConfig(BaseModel):

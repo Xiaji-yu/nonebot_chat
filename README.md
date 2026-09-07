@@ -4,7 +4,7 @@ NoneBot2 智能聊天插件 — 人格驱动对话、记忆系统、主动回复
 
 ## 功能
 
-- **人格系统**：通过 `chat_config.yaml` 配置 AI 人格名称、系统提示词、唤醒词
+- **人格系统**：通过 `chat_config.yaml` 配置 AI 人格名称、系统提示词（支持独立 SOUL.md 文件）
 - **记忆系统**：会话级对话历史管理，支持长对话自动蒸馏摘要
 - **持久化存储**：SQLite 存储聊天记录和蒸馏摘要，重启不丢失，7 天自动清理
 - **主动回复**：概率触发的 spontaneous 回复，带冷却时间
@@ -272,7 +272,6 @@ personality:
   system_prompt: |             # 系统提示词（多行）
     你是一个友善的助手...
   prompt_file: "SOUL.md"       # 可选：独立人格文件，覆盖 system_prompt
-  wake_words: ["小助手", "bot"] # 唤醒词（子串匹配，不区分大小写）
 ```
 
 | 字段 | 类型 | 默认值 | 说明 |
@@ -280,8 +279,10 @@ personality:
 | `name` | string | `"小助手"` | 人格名称，出现在主动回复和系统提示中 |
 | `system_prompt` | string | 见上方 | 系统提示词，定义 AI 的行为准则、语气、风格。支持多行 |
 | `prompt_file` | string \| null | `null` | 可选。独立人格文件路径（建议 `.md`），相对路径基于 `chat_config.yaml` 所在目录解析。设置了且文件存在时，文件内容**覆盖** `system_prompt`；文件缺失回退内嵌提示。**不设置时自动读取配置目录下的 `SOUL.md`（若存在）** |
-| `wake_words` | list[string] | `["小助手", "bot"]` | 唤醒词列表。用户消息命中任意词才触发回复（主动回复除外）。子串匹配，注意避免短词误匹配 |
 
+> **触发词说明**：唤醒/触发关键词统一由 `pipeline.trigger.keywords` 管理
+> （见下方 trigger 配置），人格层不再单独配置唤醒词。
+>
 > **提示**：长人设（如 SOUL.md 风格）建议用 `prompt_file` 独立维护，
 > 避免 `chat_config.yaml` 臃肿。文件内容全文作为 system_prompt 发送，
 > 注意控制长度（约 1.5-2 字符/token）。
@@ -508,20 +509,22 @@ pipeline:
 
 **示例：** `max_requests: 3, window: 10` 表示 10 秒内最多触发 3 次，第 4 次被拦截并等待窗口重置。
 
-#### pipeline.trigger — 触发检测
+#### pipeline.trigger — 触发检测（群聊）
+
+**私聊始终直接回复**，不经触发检测；本节仅控制群聊。
 
 ```yaml
   trigger:
-    mode: "keyword"      # "mention" | "keyword" | "spectator"
+    mode: "mention_keyword"  # mention | keyword | mention_keyword | spectator | disabled
     keywords: ["小助手", "bot"]
 ```
 
 | 字段 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
-| `mode` | string | `"keyword"` | `"mention"` = 必须 @；`"keyword"` = 命中关键词；`"spectator"` = 所有消息 |
-| `keywords` | list[string] | `["小助手", "bot"]` | 触发关键词（keyword 模式下生效）。子串匹配 |
+| `mode` | string | `"keyword"` | 群聊触发模式：`mention` = 仅 @机器人；`keyword` = 仅含关键词；`mention_keyword` = @机器人 **或** 含关键词（任一）；`spectator` = 所有群消息；`disabled` = 群聊不触发（私聊仍回复） |
+| `keywords` | list[string] | `["小助手", "bot"]` | 触发关键词（`keyword` / `mention_keyword` 模式生效）。子串匹配，不区分大小写 |
 
-**注意：** keyword 模式下 keywords 不能为空，否则启动报错。
+**注意：** `keyword` / `mention_keyword` 模式下 keywords 不能为空，否则启动报错。
 
 #### pipeline.admin — 管理命令
 
@@ -577,11 +580,16 @@ pipeline:
 
 ### 群聊
 
-发送 `小助手 今天天气怎么样` — 唤醒词 + 消息内容
+按 `pipeline.trigger.mode` 触发：
+- `mention`：@机器人
+- `keyword`：消息含关键词（如 `云崽 你好`）
+- `mention_keyword`：@机器人 或 含关键词 均可
+- `spectator`：所有消息都回
+- `disabled`：群聊不回复
 
 ### 私聊
 
-直接发送消息（私聊无唤醒词要求）
+直接发送消息即可（私聊不经触发检测，始终回复）。
 
 ### 命令
 
@@ -590,13 +598,13 @@ pipeline:
 ## 常见问题
 
 **Q: 机器人没有回复？**
-- 检查是否命中唤醒词（keyword 模式）或 @了机器人（mention 模式）
-- 检查是否在黑名单中
+- 群聊：确认触发模式（`trigger.mode`）与消息是否匹配（关键词/@）
+- 检查是否被黑名单拦截，或白名单未包含当前用户/群
 - 检查频控是否被限制
 - 查看启动日志确认 LLM 连通性
 
 **Q: 如何限制只有特定用户可用？**
-- 设置 `pipeline.access.mode: "whitelist"` 并填写 `users` 列表
+- 设置 `pipeline.access.whitelist.enabled: true` 并填写 `users` 列表
 
 **Q: 如何让机器人在指定时间段静默？**
 - 设置 `pipeline.sleep.enabled: true`，配置 `schedule.start` 和 `schedule.end`

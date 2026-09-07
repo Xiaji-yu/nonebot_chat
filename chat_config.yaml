@@ -28,9 +28,6 @@ personality:
     请用简洁、自然的语气回复，避免过于正式或机械的表达。
     适当使用 emoji，但不要过度。记住和用户的历史对话上下文。
   # prompt_file: "SOUL.md"
-  wake_words:
-    - "小助手"
-    - "bot"
 
 
 # ------------------------------------------------------------------
@@ -146,12 +143,17 @@ pipeline:
     window: 10
 
   # ── 触发检测（Trigger） ─────────────────────────────────────
-  #  mode: "mention"（@机器人）/ "keyword" / "spectator"（全部）
+  #  群聊触发规则（私聊始终直接回复，不经此检测）：
+  #    mode: "mention"          仅 @机器人 触发
+  #          "keyword"          仅含关键词触发
+  #          "mention_keyword"  @机器人 或 含关键词（任一）
+  #          "spectator"        所有群消息都触发
+  #          "disabled"         群聊不触发
   trigger:
-    mode: "keyword"
+    mode: "mention_keyword"
     keywords:
+      - "云崽"
       - "小助手"
-      - "bot"
 
   # ── 管理命令（Admin） ───────────────────────────────────────
   #  内置：清空记忆/状态/测试模型/休眠/唤醒（不经 LLM，即时响应）

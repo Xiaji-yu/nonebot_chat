@@ -144,6 +144,19 @@ else
     install_nbcli
 fi
 
+# ------------------------------------------------------------------
+# 4. 配置模板放到项目根目录（与插件仓库解耦，pull 不会覆盖）
+# ------------------------------------------------------------------
+CONFIG_SRC="$PLUGIN_DIR/chat_config.yaml"
+if [[ -f "$CONFIG_SRC" ]]; then
+    if [[ -f "chat_config.yaml" ]]; then
+        echo "提示: 项目根目录已有 chat_config.yaml，保留现有配置。"
+    else
+        cp "$CONFIG_SRC" "chat_config.yaml"
+        echo "已复制配置模板到项目根目录: chat_config.yaml"
+    fi
+fi
+
 echo ""
 echo "=== 安装完成 ==="
 echo "1. 插件源码已克隆到: $PLUGIN_DIR"
@@ -153,5 +166,10 @@ else
     echo "2. pyproject.toml 已注册 [tool.nonebot.plugins]"
     echo "3. 启动方式: nb run"
 fi
-echo "请将 chat_config.yaml 放到项目根目录（或设置 CHAT_CONFIG_PATH 环境变量指向其路径）"
-echo "插件源码内的 chat_config.yaml 位于 $PLUGIN_DIR/chat_config.yaml"
+echo ""
+echo "=== 下一步：配置 ==="
+echo "插件从项目根目录的 chat_config.yaml 读取配置（已与插件仓库解耦，git pull 不会覆盖）。"
+echo "请在 .env（或 .env.prod）中添加："
+echo "  CHAT_CONFIG_PATH=chat_config.yaml"
+echo "然后编辑 chat_config.yaml 填入你的 LLM 配置（base_url / model / api_key）。"
+echo "更新插件代码时直接 cd $PLUGIN_DIR && git pull 即可，不影响你的配置。"

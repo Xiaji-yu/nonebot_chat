@@ -80,7 +80,16 @@ git clone https://github.com/Xiaji-yu/nonebot_chat.git
 nonebot.load_plugin("plugins.nonebot_chat.chat")
 ```
 
-将 `chat_config.yaml` 放到 `plugins/nonebot_chat/` 目录下，编辑后重启 bot 即可。
+**配置放在 bot 项目根目录**（不要改插件仓库内的 `chat_config.yaml`，否则
+`git pull` 更新插件时会覆盖你的配置）：
+
+```bash
+# 把配置模板复制到项目根目录
+cp plugins/nonebot_chat/chat_config.yaml .
+```
+
+在 `.env` 中添加 `CHAT_CONFIG_PATH=chat_config.yaml`，编辑根目录的
+`chat_config.yaml` 后重启 bot 即可。更新插件时 `git pull` 不影响你的配置。
 
 ### 方式二：pip 安装
 
@@ -199,28 +208,27 @@ pip uninstall nonebot-chat -y
 插件按以下顺序自动查找 `chat_config.yaml`：
 
 1. **`CHAT_CONFIG_PATH` 环境变量指向的路径**（最明确，推荐）
-2. **插件安装目录下的 `chat_config.yaml`**（git clone / 源码方式自动命中）
+2. **插件安装目录下的 `chat_config.yaml`**（仅作为无配置时的兜底模板）
 3. 都找不到时使用内置默认值启动（仅开发调试，LLM 不会真正可用）
 
-对应各安装方式的操作：
+**无论哪种安装方式，都建议把配置文件放到 bot 项目根目录**，与插件仓库
+解耦 —— 这样更新插件（git pull / pip 升级）不会覆盖你的配置。
 
-- **git clone 安装**：仓库自带 `chat_config.yaml`，就在
-  `plugins/nonebot_chat/chat_config.yaml`，直接编辑该文件即可。
-- **pip / uv 安装**：插件装在 `site-packages` 里没有配置文件，需要自建一份：
+```bash
+# 从模板复制到项目根目录
+curl -fsSL -o chat_config.yaml \
+  https://raw.githubusercontent.com/Xiaji-yu/nonebot_chat/main/chat_config.yaml
+# （git clone 安装则: cp plugins/nonebot_chat/chat_config.yaml .）
+```
 
-  ```bash
-  # 从 GitHub 下载模板到 bot 项目根目录
-  curl -fsSL -o chat_config.yaml \
-    https://raw.githubusercontent.com/Xiaji-yu/nonebot_chat/main/chat_config.yaml
-  ```
+在 `.env` 中指定路径：
 
-  然后在 `.env` 中指定路径：
+```env
+CHAT_CONFIG_PATH=chat_config.yaml
+```
 
-  ```env
-  CHAT_CONFIG_PATH=chat_config.yaml
-  ```
-
-  修改配置后**重启 bot** 生效。
+修改配置后**重启 bot** 生效。一键安装脚本（`install-plugin.sh`）会自动完成
+模板复制与 `.env` 提示，无需手动操作。
 
 完整字段含义见下方「配置详解」章节。
 

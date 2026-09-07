@@ -56,6 +56,40 @@ pip install git+https://github.com/Xiaji-yu/nonebot_chat.git
 
 将 `chat_config.yaml` 放到 bot 项目根目录，通过 `CHAT_CONFIG_PATH` 环境变量指定路径。
 
+> **注意**：方式二会把插件安装到 Python 的 `site-packages`，**不会**出现在
+> `plugins/` 目录中 —— 这是正常行为（NoneBot 通过 entry point 自动发现），
+> 不是安装失败。可通过 `pip show nonebot-chat` 确认已安装。
+
+## 卸载
+
+### 卸载方式一（git clone 安装）
+
+```bash
+# 1. 删除插件目录（内含 chat_config.yaml，一并删除）
+rm -rf <你的bot项目>/plugins/nonebot_chat/
+
+# 2. 移除 bot.py 中的加载语句
+# 删除这一行：
+#   nonebot.load_plugin("plugins.nonebot_chat.chat")
+```
+
+重启 bot 生效。若同时装有方式二，需一并卸载（见下）。
+
+### 卸载方式二（pip 安装）
+
+```bash
+# 1. 激活虚拟环境
+source <bot venv>/bin/activate
+
+# 2. 卸载插件
+pip uninstall nonebot-chat -y
+```
+
+重启 bot 生效。
+
+> **两种方式混装的处理**：若同时用方式一（`plugins/` 目录）和方式二（pip）安装过，
+> 同一模块会重复注册，需**卸载其一**。建议保留一种，删除另一处（见上方对应卸载步骤）。
+
 ## 配置
 
 编辑项目目录下的 `chat_config.yaml`。完整配置见下方「配置详解」章节。

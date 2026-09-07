@@ -1,0 +1,79 @@
+"""
+@Author         : Xiaji-yu
+@Date           : 2026-09-07
+@Description    : Personality 人格文件（SOUL.md）加载测试
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from chat.config import ChatConfig
+from chat.personality import Personality
+
+
+def make_personality(tmp_path: Path, config_text: str | None = None) -> Personality:
+    """在 tmp_path 构造配置目录并返回 Personality。"""
+    yaml_path = tmp_path / "chat_config.yaml"
+    if config_text is None:
+        config_text = "personality:\n  name: 小助手\n  system_prompt: 内嵌提示\n"
+    yaml_path.write_text(config_text, encoding="utf-8")
+    return Personality(ChatConfig(config_path=str(yaml_path)))
+
+
+class TestPersonalityPromptFile:
+    def test_falls_back_to_embedded_prompt_when_no_soul(self, tmp_path: Path) -> None:
+        p = make_personality(tmp_path)
+        assert p.system_prompt == "内嵌提示"
+
+    def test_auto_discovers_soul_md(self, tmp_path: Path) -> None:
+        """未配置 prompt_file 时自动读取同目录 SOUL.md。"""
+        (tmp_path / "SOUL.md").write_text(
+            "你是云崽。一朵有脾气的小云。\n护短，嘴碎，认真帮得上忙。",
+            encoding="utf-8",
+        )
+        p = make_personality(tmp_path)
+        assert "云崽" in p.system_prompt
+        assert "内嵌提示" not in p.system_prompt
+
+    def test_prompt_file_overrides_embedded(self, tmp_path: Path) -> None:
+        """显式 prompt_file 优先于内嵌 system_prompt。"""
+        (tmp_path / "persona.md").write_text("显式人格文件内容", encoding="utf-8")
+        cfg_text = (
+            "personality:\n"
+            "  name: 小助手\n"
+            "  system_prompt: 内嵌提示\n"
+            "  prompt_file: persona.md\n"
+        )
+        p = make_personality(tmp_path, cfg_text)
+        assert p.system_prompt == "显式人格文件内容"
+
+    def test_prompt_file_absolute_path(self, tmp_path: Path) -> None:
+        """prompt_file 支持绝对路径。"""
+        outer = tmp_path / "outer.md"
+        outer.write_text("绝对路径人格", encoding="utf-8")
+        cfg_text = (
+            "personality:\n"
+            "  name: 小助手\n"
+            f"  prompt_file: {outer}\n"
+        )
+        p = make_personality(tmp_path, cfg_text)
+        assert p.system_prompt == "绝对路径人格"
+
+    def test_missing_prompt_file_falls_back(self, tmp_path: Path) -> None:
+        """显式 prompt_file 不存在时回退内嵌 system_prompt。"""
+        cfg_text = (
+            "personality:\n"
+            "  name: 小助手\n"
+            "  system_prompt: 内嵌提示\n"
+            "  prompt_file: missing.md\n"
+        )
+        p = make_personality(tmp_path, cfg_text)
+        assert p.system_prompt == "内嵌提示"
+
+    def test_soul_md_content_in_system_message(self, tmp_path: Path) -> None:
+        """build_system_message 应使用文件内容。"""
+        (tmp_path / "SOUL.md").write_text("SOUL 内容", encoding="utf-8")
+        p = make_personality(tmp_path)
+        msg = p.build_system_message()
+        assert msg == {"role": "system", "content": "SOUL 内容"}

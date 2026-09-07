@@ -27,8 +27,11 @@ class Personality:
 
     def __init__(self, config: ChatConfig) -> None:
         self._config = config
+        self._config_dir = Path(config.config_path).resolve().parent
         self._yaml: ChatYamlConfig = ChatYamlConfig()
+        self._prompt_from_file: str | None = None
         self._load()
+        self._load_prompt_file()
 
     # ------------------------------------------------------------------
     # Loading
@@ -51,6 +54,38 @@ class Personality:
             logger.warning("Invalid chat config, using defaults: %s", exc)
 
     # ------------------------------------------------------------------
+    # Prompt 文件加载（SOUL.md / persona.md）
+    # ------------------------------------------------------------------
+
+    def _load_prompt_file(self) -> None:
+        """加载人格文件（如 SOUL.md），内容作为 system_prompt。
+
+        解析优先级：
+        1. personality.prompt_file 显式指定（相对 chat_config.yaml 目录）；
+        2. 自动查找配置目录下的 SOUL.md。
+        文件缺失或不可读时回退 YAML 内嵌 system_prompt。
+        """
+        candidates: list[Path] = []
+        explicit = self._yaml.personality.prompt_file
+        if explicit:
+            candidates.append(Path(explicit))
+            if not Path(explicit).is_absolute():
+                candidates.append(self._config_dir / explicit)
+        else:
+            candidates.append(self._config_dir / "SOUL.md")
+
+        for path in candidates:
+            try:
+                if path.is_file():
+                    content = path.read_text(encoding="utf-8").strip()
+                    if content:
+                        self._prompt_from_file = content
+                        logger.info("Loaded personality from %s", path)
+                        return
+            except OSError as exc:
+                logger.warning("Failed to read personality file %s: %s", path, exc)
+
+    # ------------------------------------------------------------------
     # Personality
     # ------------------------------------------------------------------
 
@@ -61,7 +96,13 @@ class Personality:
 
     @property
     def system_prompt(self) -> str:
-        """系统提示词。"""
+        """系统提示词。
+
+        优先返回人格文件（SOUL.md / prompt_file）内容，
+        未加载到文件时回退 YAML 内嵌 system_prompt。
+        """
+        if self._prompt_from_file is not None:
+            return self._prompt_from_file
         return self._yaml.personality.system_prompt
 
     @property

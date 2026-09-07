@@ -51,7 +51,19 @@ class PersonalityConfig(BaseModel):
     """人格名称。"""
 
     system_prompt: str = Field(default=DEFAULT_SYSTEM_PROMPT)
-    """系统提示词（System Prompt），定义 AI 的人格和行为准则。"""
+    """系统提示词（System Prompt），定义 AI 的人格和行为准则。
+
+    若设置了 prompt_file（或存在默认的 SOUL.md），则优先读取
+    文件内容作为 system_prompt，此字段作为回退。
+    """
+
+    prompt_file: str | None = Field(default=None)
+    """人格文件路径（可选，推荐 *.md）。
+
+    相对路径相对于 chat_config.yaml 所在目录解析。
+    设置了且文件存在时，文件内容覆盖 system_prompt。
+    未设置时自动查找配置目录下的 SOUL.md。
+    """
 
     wake_words: list[str] = Field(default=["小助手", "bot"])
     """唤醒词列表。仅当消息命中唤醒词时才触发回复（主动回复除外）。"""

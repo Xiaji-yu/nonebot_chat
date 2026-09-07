@@ -271,6 +271,7 @@ personality:
   name: "小助手"               # 人格名称
   system_prompt: |             # 系统提示词（多行）
     你是一个友善的助手...
+  prompt_file: "SOUL.md"       # 可选：独立人格文件，覆盖 system_prompt
   wake_words: ["小助手", "bot"] # 唤醒词（子串匹配，不区分大小写）
 ```
 
@@ -278,7 +279,12 @@ personality:
 |---|---|---|---|
 | `name` | string | `"小助手"` | 人格名称，出现在主动回复和系统提示中 |
 | `system_prompt` | string | 见上方 | 系统提示词，定义 AI 的行为准则、语气、风格。支持多行 |
+| `prompt_file` | string \| null | `null` | 可选。独立人格文件路径（建议 `.md`），相对路径基于 `chat_config.yaml` 所在目录解析。设置了且文件存在时，文件内容**覆盖** `system_prompt`；文件缺失回退内嵌提示。**不设置时自动读取配置目录下的 `SOUL.md`（若存在）** |
 | `wake_words` | list[string] | `["小助手", "bot"]` | 唤醒词列表。用户消息命中任意词才触发回复（主动回复除外）。子串匹配，注意避免短词误匹配 |
+
+> **提示**：长人设（如 SOUL.md 风格）建议用 `prompt_file` 独立维护，
+> 避免 `chat_config.yaml` 臃肿。文件内容全文作为 system_prompt 发送，
+> 注意控制长度（约 1.5-2 字符/token）。
 
 ### llm — 大语言模型
 

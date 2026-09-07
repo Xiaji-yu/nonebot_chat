@@ -1,12 +1,10 @@
 """
 @Author         : Xiaji-yu
 @Date           : 2026-06-19
-@Description    : 黑白名单测试 — 三种模式 + fail-closed 设计
+@Description    : 黑白名单测试 — 独立开关、黑名单优先、fail-closed
 """
 
 from __future__ import annotations
-
-import pytest
 
 from chat.pipeline.access import AccessController
 
@@ -14,113 +12,156 @@ from chat.pipeline.access import AccessController
 
 
 def make_config(
-    mode: str = "none",
-    users: list[str] | None = None,
-    groups: list[str] | None = None,
+    wl_enabled: bool = False,
+    wl_users: list[str] | None = None,
+    wl_groups: list[str] | None = None,
+    bl_enabled: bool = False,
+    bl_users: list[str] | None = None,
+    bl_groups: list[str] | None = None,
 ) -> object:
     cfg = type("AccessConfig", (), {})()
-    cfg.mode = mode
-    cfg.users = users if users is not None else []
-    cfg.groups = groups if groups is not None else []
+    wl = type("AccessListConfig", (), {})()
+    wl.enabled = wl_enabled
+    wl.users = wl_users if wl_users is not None else []
+    wl.groups = wl_groups if wl_groups is not None else []
+    bl = type("AccessListConfig", (), {})()
+    bl.enabled = bl_enabled
+    bl.users = bl_users if bl_users is not None else []
+    bl.groups = bl_groups if bl_groups is not None else []
+    cfg.whitelist = wl
+    cfg.blacklist = bl
     return cfg
 
 
-# ── None 模式 ──────────────────────────────────────────────────────
+# ── 全关闭（默认） ─────────────────────────────────────────────────
 
 
-class TestNoneMode:
+class TestAllDisabled:
     def test_allows_all_users(self) -> None:
-        ac = AccessController(make_config("none"))
+        ac = AccessController(make_config())
         assert ac.check("123", None)[0] is True
         assert ac.check("456", "789")[0] is True
 
-    def test_allows_even_with_empty_id(self) -> None:
-        """none 模式下空 ID 也会被拦截（安全设计）。"""
-        ac = AccessController(make_config("none"))
+    def test_blocks_empty_user_id(self) -> None:
+        """空 ID 一律拦截（安全设计）。"""
+        ac = AccessController(make_config())
         allowed, reason = ac.check("", None)
         assert allowed is False
         assert reason == "invalid_user_id"
 
 
-# ── Whitelist 模式 ─────────────────────────────────────────────────
+# ── 仅白名单 ───────────────────────────────────────────────────────
 
 
-class TestWhitelistMode:
+class TestWhitelistOnly:
     def test_allows_whitelisted_user(self) -> None:
-        ac = AccessController(make_config("whitelist", users=["123"]))
+        ac = AccessController(make_config(wl_enabled=True, wl_users=["123"]))
         assert ac.check("123", None)[0] is True
 
     def test_blocks_non_whitelisted_user(self) -> None:
-        ac = AccessController(make_config("whitelist", users=["123"]))
+        ac = AccessController(make_config(wl_enabled=True, wl_users=["123"]))
         allowed, reason = ac.check("456", None)
         assert allowed is False
         assert reason == "not_in_whitelist"
 
     def test_allows_whitelisted_group(self) -> None:
-        ac = AccessController(make_config("whitelist", groups=["789"]))
+        ac = AccessController(make_config(wl_enabled=True, wl_groups=["789"]))
         assert ac.check("456", "789")[0] is True
 
-    def test_blocks_non_whitelisted_group(self) -> None:
-        ac = AccessController(make_config("whitelist", groups=["789"]))
-        allowed, reason = ac.check("456", "000")
-        assert allowed is False
-        assert reason == "not_in_whitelist"
-
     def test_user_in_whitelist_overrides_group(self) -> None:
-        """用户在白名单中：即使群不在白名单也放行。"""
-        ac = AccessController(make_config("whitelist", users=["123"], groups=["000"]))
-        assert ac.check("123", "999")[0] is True
+        ac = AccessController(make_config(wl_enabled=True, wl_users=["123"]))
+        assert ac.check("123", "000")[0] is True
 
 
-# ── Blacklist 模式 ─────────────────────────────────────────────────
+# ── 仅黑名单 ───────────────────────────────────────────────────────
 
 
-class TestBlacklistMode:
+class TestBlacklistOnly:
     def test_blocks_blacklisted_user(self) -> None:
-        ac = AccessController(make_config("blacklist", users=["123"]))
+        ac = AccessController(make_config(bl_enabled=True, bl_users=["123"]))
         allowed, reason = ac.check("123", None)
         assert allowed is False
         assert reason == "blacklisted_user"
 
     def test_allows_non_blacklisted_user(self) -> None:
-        ac = AccessController(make_config("blacklist", users=["123"]))
+        ac = AccessController(make_config(bl_enabled=True, bl_users=["123"]))
         assert ac.check("456", None)[0] is True
 
     def test_blocks_blacklisted_group(self) -> None:
-        ac = AccessController(make_config("blacklist", groups=["789"]))
+        ac = AccessController(make_config(bl_enabled=True, bl_groups=["789"]))
         allowed, reason = ac.check("456", "789")
         assert allowed is False
         assert reason == "blacklisted_group"
 
-    def test_user_blacklist_overrides(self) -> None:
-        """用户被拉黑：即使群不在黑名单也被拦截。"""
-        ac = AccessController(make_config("blacklist", users=["123"]))
-        assert ac.check("123", "000")[0] is False
+
+# ── 黑白名单同时启用（黑名单优先） ─────────────────────────────────
+
+
+class TestBothEnabled:
+    def test_blacklist_wins_over_whitelist(self) -> None:
+        """同在白名单与黑名单 → 黑名单优先拦截。"""
+        ac = AccessController(
+            make_config(
+                wl_enabled=True, wl_users=["123"],
+                bl_enabled=True, bl_users=["123"],
+            )
+        )
+        allowed, reason = ac.check("123", None)
+        assert allowed is False
+        assert reason == "blacklisted_user"
+
+    def test_whitelisted_and_not_blacklisted_allowed(self) -> None:
+        ac = AccessController(
+            make_config(
+                wl_enabled=True, wl_users=["123"],
+                bl_enabled=True, bl_users=["456"],
+            )
+        )
+        assert ac.check("123", None)[0] is True
+
+    def test_not_whitelisted_blocked_even_if_not_blacklisted(self) -> None:
+        ac = AccessController(
+            make_config(
+                wl_enabled=True, wl_users=["123"],
+                bl_enabled=True, bl_users=["456"],
+            )
+        )
+        allowed, reason = ac.check("789", None)
+        assert allowed is False
+        assert reason == "not_in_whitelist"
+
+    def test_blacklisted_group_wins_over_whitelisted_group(self) -> None:
+        """群同时在两名单 → 黑名单优先。"""
+        ac = AccessController(
+            make_config(
+                wl_enabled=True, wl_groups=["789"],
+                bl_enabled=True, bl_groups=["789"],
+            )
+        )
+        allowed, reason = ac.check("456", "789")
+        assert allowed is False
+        assert reason == "blacklisted_group"
 
 
 # ── 边界条件 ──────────────────────────────────────────────────────
 
 
 class TestAccessBoundary:
-    def test_invalid_mode_raises_on_init(self) -> None:
-        with pytest.raises(ValueError, match="Invalid access mode"):
-            AccessController(make_config("invalid"))
-
-    def test_empty_user_id_blocked(self) -> None:
-        ac = AccessController(make_config("none"))
+    def test_empty_user_id_blocked_always(self) -> None:
+        ac = AccessController(make_config(wl_enabled=True))
         allowed, reason = ac.check("", "123")
         assert allowed is False
         assert reason == "invalid_user_id"
 
-    def test_private_chat_no_group_check(self) -> None:
-        """私聊（group_id=None）时只检查用户。"""
-        ac = AccessController(make_config("blacklist", users=["123"]))
-        assert ac.check("123", None)[0] is False
+    def test_private_chat_only_checks_user(self) -> None:
+        """私聊（group_id=None）时只检查用户维度。"""
+        ac = AccessController(make_config(bl_enabled=True, bl_groups=["789"]))
+        # 群名单不适用于私聊
         assert ac.check("456", None)[0] is True
 
-    def test_empty_lists(self) -> None:
-        """空名单时行为正常。"""
-        ac = AccessController(make_config("whitelist", users=[], groups=[]))
+    def test_empty_whitelist_blocks_everyone(self) -> None:
+        """白名单启用但名单为空 → 所有人被拦截（fail-closed）。"""
+        ac = AccessController(make_config(wl_enabled=True))
         allowed, reason = ac.check("anyone", None)
         assert allowed is False
         assert reason == "not_in_whitelist"

@@ -205,19 +205,6 @@ class TestEdgeCaseDemo:
 # ======================================================================
 
 
-def make_config(
-    enabled: bool = True,
-    users: list[str] | None = None,
-    groups: list[str] | None = None,
-) -> object:
-    cfg = type("AccessConfig", (), {})()
-    cfg.mode = "none"
-    cfg.enabled = enabled
-    cfg.users = users if users is not None else []
-    cfg.groups = groups if users is not None else []
-    return cfg
-
-
 def make_silent_config(keywords: list[str]) -> object:
     """创建 SilentFilter 所需的配置对象。"""
     cfg = type("SilentConfig", (), {})()
@@ -231,10 +218,32 @@ def make_access_config(
     users: list[str] | None = None,
     groups: list[str] | None = None,
 ) -> object:
+    """创建 AccessController 配置对象。
+
+    Args:
+        mode: "none" | "whitelist" | "blacklist"（演示用便捷映射）。
+        users: 对应名单中的用户 ID 列表。
+        groups: 对应名单中的群 ID 列表。
+    """
     cfg = type("AccessConfig", (), {})()
-    cfg.mode = mode
-    cfg.users = users if users is not None else []
-    cfg.groups = groups if groups is not None else []
+    wl = type("AccessListConfig", (), {})()
+    bl = type("AccessListConfig", (), {})()
+    wl_users: list[str] = users if users is not None else []
+    wl_groups: list[str] = groups if groups is not None else []
+    if mode == "whitelist":
+        wl.enabled, bl.enabled = True, False
+        wl.users, wl.groups = wl_users, wl_groups
+        bl.users, bl.groups = [], []
+    elif mode == "blacklist":
+        wl.enabled, bl.enabled = False, True
+        wl.users, wl.groups = [], []
+        bl.users, bl.groups = wl_users, wl_groups
+    else:
+        wl.enabled, bl.enabled = False, False
+        wl.users, wl.groups = [], []
+        bl.users, bl.groups = [], []
+    cfg.whitelist = wl
+    cfg.blacklist = bl
     return cfg
 
 

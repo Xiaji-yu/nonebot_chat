@@ -1,7 +1,7 @@
 """
 @Author         : Xiaji-yu
 @Date           : 2026-06-18
-@Description    : Access control — whitelist / blacklist filtering
+@Description    : Access control — independent whitelist / blacklist filtering
 """
 
 __author__ = "Xiaji-yu"
@@ -11,30 +11,27 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-VALID_MODES = frozenset({"whitelist", "blacklist", "none"})
-
 
 class AccessController:
-    """黑白名单控制器。
+    """访问控制器 — 白名单与黑名单相互独立，可同时启用。
 
-    mode:
-      - "none": 不过滤，所有用户/群组放行
-      - "whitelist": 仅名单内的用户/群组可访问
-      - "blacklist": 名单内的用户/群组被拦截
+    判定规则（黑名单优先）：
+      1. 黑名单命中（用户或群在 blacklist 中）→ 直接拦截；
+      2. 白名单启用 → 用户或群必须命中 whitelist 才放行；
+      3. 白名单未启用 → 放行。
 
-    安全默认：未知模式或配置错误时 deny-all（fail-closed）。
+    安全默认：非法/缺失配置时 deny-all（fail-closed）。
     """
 
     def __init__(self, access_config: Any) -> None:
-        mode = getattr(access_config, "mode", None)
-        if mode not in VALID_MODES:
-            raise ValueError(
-                f"Invalid access mode: {mode!r}. "
-                f"Must be one of: {', '.join(sorted(VALID_MODES))}"
-            )
-        self._mode = mode
-        self._users: set[str] = set(getattr(access_config, "users", []))
-        self._groups: set[str] = set(getattr(access_config, "groups", []))
+        wl = getattr(access_config, "whitelist", None)
+        bl = getattr(access_config, "blacklist", None)
+        self._wl_enabled = bool(getattr(wl, "enabled", False))
+        self._bl_enabled = bool(getattr(bl, "enabled", False))
+        self._wl_users: set[str] = set(getattr(wl, "users", []) or [])
+        self._wl_groups: set[str] = set(getattr(wl, "groups", []) or [])
+        self._bl_users: set[str] = set(getattr(bl, "users", []) or [])
+        self._bl_groups: set[str] = set(getattr(bl, "groups", []) or [])
 
     def check(self, user_id: str, group_id: str | None = None) -> tuple[bool, str]:
         """检查访问权限。
@@ -49,23 +46,20 @@ class AccessController:
         if not user_id:
             return False, "invalid_user_id"
 
-        if self._mode == "none":
-            return True, ""
+        # 黑名单优先：命中即拦截
+        if self._bl_enabled:
+            if user_id in self._bl_users:
+                return False, "blacklisted_user"
+            if group_id is not None and group_id in self._bl_groups:
+                return False, "blacklisted_group"
 
-        if self._mode == "whitelist":
-            if user_id in self._users:
+        # 白名单启用：必须命中名单
+        if self._wl_enabled:
+            if user_id in self._wl_users:
                 return True, ""
-            if group_id is not None and group_id in self._groups:
+            if group_id is not None and group_id in self._wl_groups:
                 return True, ""
             return False, "not_in_whitelist"
 
-        if self._mode == "blacklist":
-            if user_id in self._users:
-                return False, "blacklisted_user"
-            if group_id is not None and group_id in self._groups:
-                return False, "blacklisted_group"
-            return True, ""
-
-        # 防御性：不应到达此处（__init__ 已校验）
-        logger.error("Unknown access mode: %s", self._mode)
-        return False, "unknown_mode"
+        # 白名单未启用且未被拉黑 → 放行
+        return True, ""

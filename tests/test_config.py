@@ -92,18 +92,24 @@ class TestMemoryConfig:
 
 
 class TestAccessConfig:
-    def test_valid_modes(self) -> None:
-        for mode in ("whitelist", "blacklist", "none"):
-            ac = AccessConfig(mode=mode)
-            assert ac.mode == mode
+    def test_independent_whitelist_and_blacklist(self) -> None:
+        """白名单与黑名单应相互独立、可同时启用。"""
+        ac = AccessConfig(
+            whitelist={"enabled": True, "users": ["123"], "groups": []},
+            blacklist={"enabled": True, "users": ["456"], "groups": []},
+        )
+        assert ac.whitelist.enabled is True
+        assert ac.whitelist.users == ["123"]
+        assert ac.blacklist.enabled is True
+        assert ac.blacklist.users == ["456"]
 
-    def test_invalid_mode_raises(self) -> None:
-        with pytest.raises(ValidationError):
-            AccessConfig(mode="invalid")
-
-    def test_default_mode_none(self) -> None:
+    def test_defaults_disabled(self) -> None:
+        """默认两个名单都未启用（不过滤）。"""
         ac = AccessConfig()
-        assert ac.mode == "none"
+        assert ac.whitelist.enabled is False
+        assert ac.blacklist.enabled is False
+        assert ac.whitelist.users == []
+        assert ac.blacklist.groups == []
 
 
 # ── TriggerConfig ──────────────────────────────────────────────────
@@ -155,7 +161,8 @@ class TestPipelineConfig:
         pc = PipelineConfig()
         assert pc.sleep.enabled is False
         assert pc.dedup.enabled is True
-        assert pc.access.mode == "none"
+        assert pc.access.whitelist.enabled is False
+        assert pc.access.blacklist.enabled is False
         assert pc.trigger.mode == "keyword"
 
     def test_nested_override(self) -> None:

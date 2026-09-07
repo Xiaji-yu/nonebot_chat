@@ -163,7 +163,7 @@ class TestPipelineIntegration:
         pipeline_config = PipelineConfig(
             sleep=SleepConfig(enabled=False),
             dedup=DedupConfig(enabled=False),
-            access=AccessConfig(mode="none"),
+            access=AccessConfig(),
             silent=SilentConfig(enabled=False),
             ratelimit=RateLimitConfig(enabled=False),
             trigger=TriggerConfig(mode="keyword", keywords=["助手"]),

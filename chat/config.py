@@ -156,17 +156,34 @@ class DedupConfig(BaseModel):
     """时间窗口（秒），相同内容在此窗口内忽略。"""
 
 
-class AccessConfig(BaseModel):
-    """黑白名单配置。"""
+class AccessListConfig(BaseModel):
+    """单名单（白名单或黑名单）配置。"""
 
-    mode: Literal["whitelist", "blacklist", "none"] = Field(default="none")
-    """访问模式：whitelist（白名单）、blacklist（黑名单）、none（不过滤）。"""
+    enabled: bool = False
+    """是否启用该名单。"""
 
     users: list[str] = Field(default=[])
     """用户 ID 列表（字符串形式）。"""
 
     groups: list[str] = Field(default=[])
     """群 ID 列表（字符串形式）。"""
+
+
+class AccessConfig(BaseModel):
+    """访问控制配置 — 白名单与黑名单相互独立，可同时启用。
+
+    判定规则（黑名单优先）：
+    1. 黑名单命中（用户或群在 blacklist 中）→ 直接拦截；
+    2. 白名单启用 → 用户或群必须命中 whitelist 才放行；
+    3. 白名单未启用 → 放行。
+    两种名单都未启用时，不设限制。
+    """
+
+    whitelist: AccessListConfig = Field(default_factory=AccessListConfig)
+    """白名单：启用后仅名单内用户/群可访问。"""
+
+    blacklist: AccessListConfig = Field(default_factory=AccessListConfig)
+    """黑名单：名单内用户/群被拦截（优先于白名单判定）。"""
 
 
 class SilentConfig(BaseModel):

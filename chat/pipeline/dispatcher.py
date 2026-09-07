@@ -42,6 +42,7 @@ class AIDispatcher:
         user_id: str = "",
         group_id: str | None = None,
         stream: bool = False,
+        images: list[str] | None = None,
     ) -> str | None:
         """派发消息到 AI。
 
@@ -52,6 +53,8 @@ class AIDispatcher:
             user_id: 用户 ID（用于持久化）。
             group_id: 群 ID（用于持久化），私聊时为 None。
             stream: 是否使用流式输出。
+            images: 当前消息附带的多模态图片（data URI 或 http url），
+                附加到用户消息 content（OpenAI 多模态数组）。
 
         Returns:
             AI 回复文本，失败返回 None。
@@ -79,7 +82,9 @@ class AIDispatcher:
                 await self._memory.end_distill(session_id)
 
         # 构建消息列表
-        messages = await self._build_messages(session_id, user_input, trigger_type)
+        messages = await self._build_messages(
+            session_id, user_input, trigger_type, images=images
+        )
 
         # 调用 LLM
         if stream:
@@ -114,9 +119,14 @@ class AIDispatcher:
         session_id: str,
         user_input: str,
         trigger_type: str,
-    ) -> list[dict[str, str]]:
-        """构建发送给 LLM 的消息列表。"""
-        msgs: list[dict[str, str]] = [self._personality.build_system_message()]
+        images: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """构建发送给 LLM 的消息列表。
+
+        带图时当前用户消息 content 用 OpenAI 多模态数组：
+        [{"type":"text",...},{"type":"image_url",...}, ...]
+        """
+        msgs: list[dict[str, Any]] = [self._personality.build_system_message()]
 
         # 加入历史对话
         history = await self._memory.get_history(
@@ -130,8 +140,15 @@ class AIDispatcher:
             if context_note:
                 msgs.append({"role": "system", "content": context_note})
 
-        # 当前用户输入
-        msgs.append({"role": "user", "content": user_input})
+        # 当前用户输入：有图走多模态数组，无图保持纯文本
+        if images:
+            content: Any = [{"type": "text", "text": user_input or "（图片）"}]
+            content.extend(
+                {"type": "image_url", "image_url": {"url": u}} for u in images
+            )
+            msgs.append({"role": "user", "content": content})
+        else:
+            msgs.append({"role": "user", "content": user_input})
         return msgs
 
     def _build_context_note(self, trigger_type: str) -> str:

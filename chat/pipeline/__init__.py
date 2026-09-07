@@ -9,6 +9,7 @@ __author__ = "Xiaji-yu"
 import time
 from typing import Any
 
+from ..image_source import extract_images, load_image_data_uri
 from ..log import logger
 from ..mask import mask_user
 from ..message_desc import describe as describe_message
@@ -133,6 +134,20 @@ class Pipeline:
         # 私聊：无需触发检测，直接处理
         is_private = group_id is None
 
+        # 图片消息：先做触发判定（与文本消息一致），命中后加载多模态图即时派发
+        image_refs = extract_images(event)
+        if image_refs:
+            if not is_private:
+                triggered, _ttype = self._trigger.detect(event)
+                if not triggered:
+                    logger.debug("Dropped: image message trigger not matched")
+                    return
+            await self._process_image_message(
+                event, session_id, content, send_func, is_private,
+                user_id, group_id, stream, image_refs,
+            )
+            return
+
         # Stage 6: 防抖合并（防抖窗口内消息合并为一条，再走完整管线）
         if self._cfg.debounce.enabled:
             # 群聊：先判定本条是否满足触发（@/关键词），防抖批内任一触发即处理。
@@ -169,6 +184,55 @@ class Pipeline:
     def set_proactive(self, proactive: Any) -> None:
         """注入主动回复器。"""
         self._proactive = proactive
+
+    async def _process_image_message(
+        self,
+        event: Any,
+        session_id: str,
+        content: str,
+        send_func: Any,
+        is_private: bool,
+        user_id: str,
+        group_id: str | None,
+        stream: bool,
+        image_refs: list[Any],
+    ) -> None:
+        """处理含图片的消息：加载多模态图片后派发。
+
+        图片以 data URI / url 形式附加到当前用户消息（不入历史存储），
+        交由多模态主模型理解。任一路径加载失败则回退纯文本派发。
+        """
+        trigger_type = "private" if is_private else "image"
+        # 加载图片（本地路径 → url 下载 → 原样 url 兜底）
+        images: list[str] = []
+        for ref in image_refs:
+            uri = await load_image_data_uri(ref)
+            if uri:
+                images.append(uri)
+        logger.info(f"[image] 处理 {len(image_refs)} 张图，成功加载 {len(images)} 张")
+
+        reply = await self._dispatcher.dispatch(
+            session_id, content, trigger_type,
+            user_id=user_id, group_id=group_id, stream=stream, images=images or None,
+        )
+        if reply is None:
+            # 模型不可连通等错误反馈
+            if self._llm_client is not None:
+                model_ok = await self._llm_client.health_check()
+            else:
+                model_ok = True
+            if not model_ok:
+                await send_func("⚠️ 模型无法连通，请检查模型服务是否启动或配置是否正确。")
+            else:
+                await send_func("抱歉，我暂时无法处理这张图片。")
+            return
+
+        sender = MessageSender(send_func)
+        parts = self._formatter.format(reply)
+        if stream:
+            await sender.send_stream(parts)
+        else:
+            await sender.send_batch(parts)
 
     async def _process_once(
         self,

@@ -47,7 +47,7 @@ curl -fsSL https://raw.githubusercontent.com/Xiaji-yu/nonebot_chat/main/scripts/
 1. `git clone` 插件到 `plugins/nonebot_chat/`
 2. 在 `pyproject.toml` 的 `[tool.nonebot.plugins]` 中注册：`"nonebot-chat" = ["chat"]`
    （若该段不存在则自动追加到文件末尾，不破坏已有结构）
-3. 自动执行 `uv add -e plugins/nonebot_chat`（无 uv 时提示手动 `pip install -e`），
+3. 自动执行 `uv add --editable plugins/nonebot_chat`（无 uv 时提示手动 `pip install -e`），
    使 `import chat` 可用 —— nb-cli 按模块名加载插件，**无需修改任何 py 文件**，直接 `nb run` 即可
 4. 修改前自动备份 `pyproject.toml` 为 `pyproject.toml.bak.<时间戳>`
 
@@ -140,7 +140,7 @@ rm -rf <你的bot项目>/plugins/nonebot_chat/
 # 2. 移除 pyproject.toml [tool.nonebot.plugins] 中的注册行：
 #   "nonebot-chat" = ["chat"]
 
-# 3. 移除依赖（如已用 uv add -e 安装）
+# 3. 移除依赖（如已用 uv add --editable 安装）
 uv remove nonebot-chat
 ```
 

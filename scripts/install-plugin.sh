@@ -68,15 +68,16 @@ install_legacy() {
 # ------------------------------------------------------------------
 install_plugin_deps() {
     # 可编辑安装本地源码，使 `import chat` 可用（nb-cli 靠模块名加载）
+    # 注意: uv 只用长选项 --editable（-e 会被解析为未知参数）
     if command -v uv >/dev/null 2>&1 && [[ -f "uv.lock" ]]; then
-        uv add -e "$PLUGIN_DIR"
+        uv add --editable "$PLUGIN_DIR"
     elif [[ -n "${VIRTUAL_ENV:-}" ]] && command -v pip >/dev/null 2>&1; then
         pip install -e "$PLUGIN_DIR"
     elif [[ -x ".venv/bin/pip" ]]; then
         .venv/bin/pip install -e "$PLUGIN_DIR"
     else
         echo "警告: 未检测到 uv 或虚拟环境，请手动安装插件:"
-        echo "      uv add -e $PLUGIN_DIR   # 或激活 venv 后 pip install -e $PLUGIN_DIR"
+        echo "      uv add --editable $PLUGIN_DIR   # 或激活 venv 后 pip install -e $PLUGIN_DIR"
     fi
 }
 

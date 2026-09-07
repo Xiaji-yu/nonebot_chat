@@ -231,8 +231,13 @@ pip uninstall nonebot-chat -y
 | `/chat` / `聊天` | 开始对话 |
 | `清空记忆` / `clear` | 清空当前会话记忆 |
 | `状态` / `status` | 查看会话状态（消息数、休眠状态、触发模式） |
+| `测试模型` / `testmodel` | 测试 LLM 模型连通性（排查模型无法回复问题） |
 | `休眠` / `sleep` | 切换休眠模式（仅 manual 模式有效） |
 | `唤醒` / `wake` | 强制唤醒（仅 manual 模式有效） |
+
+**LLM 故障提示**：当 AI 回复失败时，插件会自动检测模型连通性——
+若模型服务不可达，会发送「⚠️ 模型无法连通，请检查模型服务是否启动或配置是否正确」，
+否则发送通用的「抱歉，我暂时无法回复」。可用 `测试模型` 命令主动排查。
 
 ## 依赖
 
@@ -285,6 +290,7 @@ llm:
 | `api_key` | string | `""` | API 密钥。不需要认证的服务（如本地 Ollama）留空即可 |
 | `max_tokens` | int | `1000` | 单次生成最大 token 数。中文约 1.5-2 字符/token |
 | `timeout` | int | `30` | 单次 API 请求超时时间（秒），范围 5-120 |
+| `stream` | bool | `false` | 是否启用流式输出。开启后首字延迟更低（需 adapter 支持） |
 
 ### temperature — 温度
 
@@ -419,22 +425,38 @@ pipeline:
 
 基于内容 MD5 哈希 + 时间窗口实现。适合防止误触发的重复消息。
 
-#### pipeline.access — 黑白名单
+#### pipeline.access — 黑白名单（独立开关）
+
+白名单与黑名单**相互独立、可同时启用**。判定规则：黑名单命中优先拦截；
+白名单启用时，仅名单内的用户/群可访问。
 
 ```yaml
   access:
-    mode: "none"        # "none" | "whitelist" | "blacklist"
-    users: []           # 用户 ID 列表
-    groups: []          # 群 ID 列表
+    whitelist:
+      enabled: false      # 启用后仅名单内用户/群可用
+      users: []           # 用户 ID 列表（QQ 号等）
+      groups: []          # 群 ID 列表
+    blacklist:
+      enabled: false      # 启用后名单内用户/群被拦截（优先于白名单）
+      users: []
+      groups: []
 ```
 
 | 字段 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
-| `mode` | string | `"none"` | `"none"` = 不过滤；`"whitelist"` = 仅名单内可用；`"blacklist"` = 名单内拦截 |
-| `users` | list[string] | `[]` | 用户 ID 列表（QQ 号等） |
-| `groups` | list[string] | `[]` | 群 ID 列表 |
+| `whitelist.enabled` | bool | `false` | 是否启用白名单。启用后仅名单内用户/群可访问 |
+| `whitelist.users` | list[string] | `[]` | 白名单用户 ID 列表 |
+| `whitelist.groups` | list[string] | `[]` | 白名单群 ID 列表 |
+| `blacklist.enabled` | bool | `false` | 是否启用黑名单。名单内用户/群被拦截 |
+| `blacklist.users` | list[string] | `[]` | 黑名单用户 ID 列表 |
+| `blacklist.groups` | list[string] | `[]` | 黑名单群 ID 列表 |
 
-**安全设计：** 非法 mode 值会触发启动报错（fail-closed），不会静默放行。
+**判定顺序：**
+1. 黑名单命中（用户或群在 `blacklist`）→ 直接拦截；
+2. 白名单启用 → 用户或群必须命中 `whitelist` 才放行；
+3. 白名单未启用 → 放行。
+
+**安全设计：** 白名单启用但名单为空时，所有人被拦截（fail-closed，不会静默放行）。
 
 #### pipeline.silent — 静默关键词
 

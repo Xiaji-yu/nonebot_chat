@@ -6,12 +6,11 @@
 
 __author__ = "Xiaji-yu"
 
-import logging
+import time
 from typing import Any
 
+from ..logger import logger
 from .trigger import TriggerDetector
-
-logger = logging.getLogger(__name__)
 
 
 class AIDispatcher:
@@ -57,6 +56,7 @@ class AIDispatcher:
         Returns:
             AI 回复文本，失败返回 None。
         """
+        start = time.monotonic()
         # 存储用户消息（含元数据）
         if user_id:
             await self._memory.add_user_message_with_meta(session_id, user_id, user_input, group_id)
@@ -104,6 +104,10 @@ class AIDispatcher:
             else:
                 await self._memory.add_assistant_message(session_id, reply)
 
+        elapsed = time.monotonic() - start
+        logger.info(
+            f"[dispatch] 派发耗时 {elapsed:.1f}s, 回复={'有' if reply else '无'}"
+        )
         return reply
 
     async def _build_messages(

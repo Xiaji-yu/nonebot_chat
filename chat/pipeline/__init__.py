@@ -6,9 +6,10 @@
 
 __author__ = "Xiaji-yu"
 
-import logging
+import time
 from typing import Any
 
+from ..logger import logger
 from .access import AccessController
 from .admin import (
     CMD_CLEAR_MEMORY,
@@ -27,8 +28,6 @@ from .sender import MessageSender
 from .silent import SilentFilter
 from .sleep import SleepController
 from .trigger import TriggerDetector
-
-logger = logging.getLogger(__name__)
 
 
 class Pipeline:
@@ -132,8 +131,11 @@ class Pipeline:
 
         # Stage 6: 防抖合并（防抖窗口内消息合并为一条，再走完整管线）
         if self._cfg.debounce.enabled:
+            t_queued = time.monotonic()
 
             async def _debounce_and_process(merged: str) -> None:
+                wait = time.monotonic() - t_queued
+                logger.info(f"[pipeline] 防抖等待 {wait:.1f}s 后开始处理")
                 await self._process_once(
                     event, session_id, merged, send_func, is_private, user_id, group_id, stream,
                 )
@@ -236,11 +238,15 @@ class Pipeline:
 
     async def _test_model(self, send_func: Any) -> None:
         """测试 LLM 模型连通性并回复结果。"""
+        start = time.monotonic()
         if self._llm_client is None:
             await send_func("⚠️ 未配置 LLM 客户端，无法测试。")
             return
         await send_func("🔍 正在测试模型连通性，请稍候...")
         ok = await self._llm_client.health_check()
+        ok_txt = "是" if ok else "否"
+        elapsed = time.monotonic() - start
+        logger.info(f"[test-model] 检测完成，连通={ok_txt}，耗时 {elapsed:.1f}s")
         if ok:
             await send_func("✅ 模型连通正常")
         else:

@@ -9,6 +9,7 @@ __author__ = "Xiaji-yu"
 import asyncio
 import json
 import logging
+import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
@@ -154,6 +155,7 @@ class LLMClient:
         Returns:
             助手回复的文本内容，全部端点失败返回 None。
         """
+        start = time.monotonic()
         for idx, ep in enumerate(self._endpoints):
             logger.debug(
                 f"LLM request: model={ep.model}, msgs={len(messages)}, "
@@ -161,7 +163,11 @@ class LLMClient:
             )
             result = await self._chat_once(ep, messages, temperature, max_tokens)
             if result is not None:
-                logger.info(f"LLM 回复来自 {self._endpoint_tag(idx, ep)}")
+                elapsed = time.monotonic() - start
+                logger.info(
+                    f"LLM 回复来自 {self._endpoint_tag(idx, ep)} "
+                    f"(耗时 {elapsed:.1f}s, msgs={len(messages)})"
+                )
                 return result
             if idx < len(self._endpoints) - 1:
                 logger.warning(

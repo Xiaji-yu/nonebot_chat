@@ -141,6 +141,8 @@ def _init() -> None:
                 pass
         if _persistence is not None:
             _persistence.close()
+        if _llm_client is not None:
+            await _llm_client.close()
         await _memory_store.clear_all()
         logger.info("Chat plugin shut down, memory cleared.")
 

@@ -110,6 +110,10 @@ class Personality:
     def llm_timeout(self) -> int:
         return self._yaml.llm.timeout
 
+    @property
+    def llm_stream(self) -> bool:
+        return self._yaml.llm.stream
+
     # ------------------------------------------------------------------
     # Temperature
     # ------------------------------------------------------------------

@@ -75,6 +75,9 @@ class LLMConfig(BaseModel):
     timeout: int = Field(default=DEFAULT_LLM_TIMEOUT, ge=5, le=120)
     """API 请求超时时间（秒）。"""
 
+    stream: bool = False
+    """是否启用流式输出。开启后首字延迟更低，但 adapter 需支持增量发送。"""
+
 
 class TemperatureConfig(BaseModel):
     """温度配置，控制回复的创造性。"""

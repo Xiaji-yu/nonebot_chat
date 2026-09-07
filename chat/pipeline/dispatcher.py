@@ -42,6 +42,7 @@ class AIDispatcher:
         trigger_type: str,
         user_id: str = "",
         group_id: str | None = None,
+        stream: bool = False,
     ) -> str | None:
         """派发消息到 AI。
 
@@ -51,6 +52,7 @@ class AIDispatcher:
             trigger_type: 触发类型（mention/keyword/spectator）。
             user_id: 用户 ID（用于持久化）。
             group_id: 群 ID（用于持久化），私聊时为 None。
+            stream: 是否使用流式输出。
 
         Returns:
             AI 回复文本，失败返回 None。
@@ -80,10 +82,19 @@ class AIDispatcher:
         messages = await self._build_messages(session_id, user_input, trigger_type)
 
         # 调用 LLM
-        reply = await self._llm.chat(
-            messages,
-            temperature=self._personality.temperature_default,
-        )
+        if stream:
+            reply_parts: list[str] = []
+            async for chunk in self._llm.chat_stream(
+                messages,
+                temperature=self._personality.temperature_default,
+            ):
+                reply_parts.append(chunk)
+            reply = "".join(reply_parts) if reply_parts else None
+        else:
+            reply = await self._llm.chat(
+                messages,
+                temperature=self._personality.temperature_default,
+            )
 
         if reply is not None:
             if user_id:

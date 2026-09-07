@@ -74,6 +74,7 @@ class Pipeline:
         event: Any,
         session_id: str,
         send_func: Any,
+        stream: bool = False,
     ) -> None:
         """执行完整 Pipeline。"""
         text = event.get_plaintext().strip()
@@ -126,7 +127,7 @@ class Pipeline:
 
             async def _debounce_and_process(merged: str) -> None:
                 await self._process_once(
-                    event, session_id, merged, send_func, is_private, user_id, group_id,
+                    event, session_id, merged, send_func, is_private, user_id, group_id, stream,
                 )
                 await self._maybe_proactive(session_id, send_func)
 
@@ -134,7 +135,16 @@ class Pipeline:
             return
 
         # 防抖关闭：直接走触发检测 → AI 派发
-        await self._process_once(event, session_id, text, send_func, is_private, user_id, group_id)
+        await self._process_once(
+            event,
+            session_id,
+            text,
+            send_func,
+            is_private,
+            user_id,
+            group_id,
+            stream,
+        )
 
     def set_proactive(self, proactive: Any) -> None:
         """注入主动回复器。"""
@@ -149,6 +159,7 @@ class Pipeline:
         is_private: bool = False,
         user_id: str = "",
         group_id: str | None = None,
+        stream: bool = False,
     ) -> None:
         """单次处理（触发检测 → AI 派发 → 发送）。
 
@@ -156,6 +167,7 @@ class Pipeline:
             is_private: 是否为私聊。私聊跳过触发检测，直接走 AI 派发。
             user_id: 用户 ID（用于持久化）。
             group_id: 群 ID（用于持久化）。
+            stream: 是否使用流式输出。
         """
         if not is_private:
             triggered, trigger_type = self._trigger.detect(event)
@@ -166,7 +178,7 @@ class Pipeline:
             trigger_type = "private"
 
         reply = await self._dispatcher.dispatch(
-            session_id, text, trigger_type, user_id=user_id, group_id=group_id,
+            session_id, text, trigger_type, user_id=user_id, group_id=group_id, stream=stream,
         )
         if reply is None:
             await send_func("抱歉，我暂时无法回复，请稍后再试。")
@@ -174,7 +186,10 @@ class Pipeline:
 
         sender = MessageSender(send_func)
         parts = self._formatter.format(reply)
-        await sender.send_batch(parts)
+        if stream:
+            await sender.send_stream(parts)
+        else:
+            await sender.send_batch(parts)
 
     async def _maybe_proactive(self, session_id: str, send_func: Any) -> None:
         """条件性主动回复。经过 sleep/access/ratelimit 检查。"""

@@ -42,3 +42,15 @@ class MessageSender:
         for i, part in enumerate(parts):
             logger.debug("Sending part %d/%d (%d chars)", i + 1, len(parts), len(part))
             await self.send(part)
+
+    async def send_stream(self, chunks: list[str]) -> None:
+        """流式发送消息片段。
+
+        将流式 chunks 作为整体一次性发送，避免频繁调用 send。
+        当前实现与 send_batch 一致，保留接口以便未来做真正的增量发送。
+
+        Args:
+            chunks: 文本片段列表。
+        """
+        merged = "".join(chunks)
+        await self.send(merged)

@@ -111,7 +111,12 @@ def setup_matchers(
 
     @cmd_matcher.handle()
     async def _handle_command(bot: Bot, event: MessageEvent) -> None:
-        await pipeline.process(event, get_session_id(event), _make_send(bot, event))
+        await pipeline.process(
+            event,
+            get_session_id(event),
+            _make_send(bot, event),
+            stream=personality.llm_stream,
+        )
 
     # ── 消息匹配器（触发检测） ─────────────────────────────────────
     msg_matcher = on_message(
@@ -122,7 +127,12 @@ def setup_matchers(
 
     @msg_matcher.handle()
     async def _handle_message(bot: Bot, event: MessageEvent) -> None:
-        await pipeline.process(event, get_session_id(event), _make_send(bot, event))
+        await pipeline.process(
+            event,
+            get_session_id(event),
+            _make_send(bot, event),
+            stream=personality.llm_stream,
+        )
 
     logger.info(
         "Chat matchers registered (only_superusers=%s, trigger=%s).",

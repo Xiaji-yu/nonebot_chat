@@ -48,3 +48,22 @@ class TestMessageSender:
     async def test_send_batch_without_func_no_error(self) -> None:
         sender = MessageSender(None)
         await sender.send_batch(["a", "b"])  # 不应抛异常
+
+    @pytest.mark.asyncio
+    async def test_send_stream(self) -> None:
+        send_func = AsyncMock()
+        sender = MessageSender(send_func)
+        await sender.send_stream(["chunk1", "chunk2"])
+        send_func.assert_called_once_with("chunk1chunk2")
+
+    @pytest.mark.asyncio
+    async def test_send_stream_empty(self) -> None:
+        send_func = AsyncMock()
+        sender = MessageSender(send_func)
+        await sender.send_stream([])
+        send_func.assert_called_once_with("")
+
+    @pytest.mark.asyncio
+    async def test_send_stream_without_func_no_error(self) -> None:
+        sender = MessageSender(None)
+        await sender.send_stream(["a", "b"])  # 不应抛异常

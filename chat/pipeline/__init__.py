@@ -10,7 +10,14 @@ import logging
 from typing import Any
 
 from .access import AccessController
-from .admin import CMD_CLEAR_MEMORY, CMD_SLEEP, CMD_STATUS, CMD_WAKE, AdminInterceptor
+from .admin import (
+    CMD_CLEAR_MEMORY,
+    CMD_SLEEP,
+    CMD_STATUS,
+    CMD_TEST_MODEL,
+    CMD_WAKE,
+    AdminInterceptor,
+)
 from .debounce import Debouncer
 from .dedup import check as dedup_check
 from .dispatcher import AIDispatcher
@@ -62,6 +69,7 @@ class Pipeline:
         )
 
         self._personality = personality
+        self._llm_client = llm_client
         self._memory_store = memory_store
         self._proactive = None  # 可选注入
 
@@ -181,7 +189,15 @@ class Pipeline:
             session_id, text, trigger_type, user_id=user_id, group_id=group_id, stream=stream,
         )
         if reply is None:
-            await send_func("抱歉，我暂时无法回复，请稍后再试。")
+            # 区分失败原因：模型不可连通 vs 其他临时错误
+            if self._llm_client is not None:
+                model_ok = await self._llm_client.health_check()
+            else:
+                model_ok = True
+            if not model_ok:
+                await send_func("⚠️ 模型无法连通，请检查模型服务是否启动或配置是否正确。")
+            else:
+                await send_func("抱歉，我暂时无法回复，请稍后再试。")
             return
 
         sender = MessageSender(send_func)
@@ -213,8 +229,27 @@ class Pipeline:
         elif cmd == CMD_WAKE:
             await self._sleep.force_wake()
             await send_func("已强制唤醒 🌅")
+        elif cmd == CMD_TEST_MODEL:
+            await self._test_model(send_func)
         else:
             await send_func(cmd)
+
+    async def _test_model(self, send_func: Any) -> None:
+        """测试 LLM 模型连通性并回复结果。"""
+        if self._llm_client is None:
+            await send_func("⚠️ 未配置 LLM 客户端，无法测试。")
+            return
+        await send_func("🔍 正在测试模型连通性，请稍候...")
+        ok = await self._llm_client.health_check()
+        if ok:
+            await send_func("✅ 模型连通正常")
+        else:
+            await send_func(
+                "❌ 模型无法连通。请检查：\n"
+                f"  · 模型服务（{self._personality.llm_base_url}）是否已启动\n"
+                f"  · 配置的模型名（{self._personality.llm_model}）是否与服务端一致\n"
+                "  · API Key 是否正确"
+            )
 
     async def _send_status(self, session_id: str, send_func: Any) -> None:
         """发送状态信息。"""

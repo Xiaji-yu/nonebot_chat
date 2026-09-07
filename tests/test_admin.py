@@ -12,6 +12,7 @@ from chat.pipeline.admin import (
     CMD_CLEAR_MEMORY,
     CMD_SLEEP,
     CMD_STATUS,
+    CMD_TEST_MODEL,
     CMD_WAKE,
     AdminInterceptor,
 )
@@ -76,6 +77,24 @@ class TestAdminInterceptor:
         ai = AdminInterceptor(make_config())
         result = await ai.intercept("wake")
         assert result == CMD_WAKE
+
+    @pytest.mark.asyncio
+    async def test_test_model_command(self) -> None:
+        ai = AdminInterceptor(make_config())
+        result = await ai.intercept("测试模型")
+        assert result == CMD_TEST_MODEL
+
+    @pytest.mark.asyncio
+    async def test_test_model_alias(self) -> None:
+        ai = AdminInterceptor(make_config())
+        result = await ai.intercept("testmodel")
+        assert result == CMD_TEST_MODEL
+
+    @pytest.mark.asyncio
+    async def test_test_model_chinese_alias(self) -> None:
+        ai = AdminInterceptor(make_config())
+        result = await ai.intercept("模型测试")
+        assert result == CMD_TEST_MODEL
 
     @pytest.mark.asyncio
     async def test_non_command_returns_none(self) -> None:

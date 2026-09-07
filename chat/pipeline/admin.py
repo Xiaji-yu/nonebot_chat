@@ -21,6 +21,7 @@ CMD_CLEAR_MEMORY = "__CLEAR_MEMORY__"
 CMD_STATUS = "__STATUS__"
 CMD_SLEEP = "__SLEEP__"
 CMD_WAKE = "__WAKE__"
+CMD_TEST_MODEL = "__TEST_MODEL__"
 
 
 class AdminInterceptor:
@@ -39,6 +40,9 @@ class AdminInterceptor:
         "wake": "wake",
         "休眠": "sleep",
         "唤醒": "wake",
+        "测试模型": "test_model",
+        "testmodel": "test_model",
+        "模型测试": "test_model",
     }
 
     def __init__(self, admin_config: Any) -> None:
@@ -92,4 +96,6 @@ class AdminInterceptor:
             return CMD_SLEEP
         if cmd == "wake":
             return CMD_WAKE
+        if cmd == "test_model":
+            return CMD_TEST_MODEL
         return None

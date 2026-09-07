@@ -130,6 +130,26 @@ class TestAccessConfig:
         )
         assert ac.whitelist.users == ["123", "456"]
 
+    def test_scalar_int_id_coerced_to_single_element_list(self) -> None:
+        """单个数字 QQ 号（未加引号/未成列表）应转成单元素名单而非崩溃。"""
+        ac = AccessConfig(
+            whitelist={"enabled": True, "users": 12345},
+        )
+        assert ac.whitelist.users == ["12345"]
+
+    def test_scalar_str_id_coerced_to_single_element_list(self) -> None:
+        """单个字符串 ID 也应视作单元素名单。"""
+        ac = AccessConfig(
+            blacklist={"users": "456"},
+        )
+        assert ac.blacklist.users == ["456"]
+
+    def test_invalid_scalar_types_raise_validation_error(self) -> None:
+        """bool/dict/None 等非法输入应由 pydantic 报 ValidationError 而非裸异常。"""
+        for bad in (True, {"a": 1}, None):
+            with pytest.raises(ValidationError):
+                AccessConfig(whitelist={"users": bad})
+
 
 # ── TriggerConfig ──────────────────────────────────────────────────
 

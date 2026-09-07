@@ -202,12 +202,21 @@ class AccessListConfig(BaseModel):
     @field_validator("users", "groups", mode="before")
     @classmethod
     def _coerce_ids_to_str(cls, v: Any) -> Any:
-        """兼容数字 ID（QQ/群号常不带引号），统一转为字符串。"""
-        if v is None:
+        """兼容数字 ID（QQ/群号常不带引号），统一转为字符串。
+
+        支持：列表/元组/集合（逐项转 str）、单个标量如数字或字符串
+        （视作单元素名单）。bool 与不可迭代类型原样返回，交由
+        pydantic 报出规范错误。
+        """
+        if v is None or isinstance(v, bool):
             return v
         if isinstance(v, str):
-            return v
-        return [str(item) for item in v]
+            return [v]
+        if isinstance(v, (int, float)):
+            return [str(v)]
+        if isinstance(v, (list, tuple, set)):
+            return [str(item) for item in v]
+        return v
 
 
 class AccessConfig(BaseModel):

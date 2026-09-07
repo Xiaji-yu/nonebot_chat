@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from chat.config import (
     AccessConfig,
+    ChatConfig,
     LLMConfig,
     MemoryConfig,
     PipelineConfig,
@@ -202,3 +203,29 @@ class TestLLMConfigFallbacks:
             LLMConfig(fallbacks=[{"model": "m"}])  # 缺 base_url
         with pytest.raises(ValidationError):
             LLMConfig(fallbacks=[{"base_url": "http://a.com/v1"}])  # 缺 model
+
+# ── ChatConfig validation_alias ─────────────────────────────────────
+
+
+class TestChatConfigAlias:
+    """ChatConfig 的 validation_alias 应匹配 CHAT_ 前缀环境变量。"""
+
+    def test_alias_matches_chat_prefix(self) -> None:
+        cfg = ChatConfig(
+            chat_config_path="/tmp/x.yaml",
+            chat_chat_enabled=False,
+            chat_only_superusers=False,
+        )
+        assert cfg.config_path == "/tmp/x.yaml"
+        assert cfg.chat_enabled is False
+        assert cfg.only_superusers is False
+
+    def test_field_name_still_accepted(self) -> None:
+        """populate_by_name 允许直接按字段名构造。"""
+        cfg = ChatConfig(config_path="/tmp/y.yaml")
+        assert cfg.config_path == "/tmp/y.yaml"
+
+    def test_defaults(self) -> None:
+        cfg = ChatConfig()
+        assert cfg.chat_enabled is True
+        assert cfg.only_superusers is True

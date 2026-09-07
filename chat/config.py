@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # ── 常量 ──────────────────────────────────────────────────────────
 DEFAULT_PERSONA_NAME = "小助手"
@@ -321,18 +321,24 @@ class ChatConfig(BaseModel):
     仅包含通过 NoneBot 环境变量覆盖的顶级开关。
     详细配置（人格、LLM、Pipeline 等）从 chat_config.yaml 加载，
     由 ChatYamlConfig 模型统一验证。
+
+    环境变量名 = 字段名加 ``CHAT_`` 前缀（NoneBot 不做自动前缀，
+    此处通过 validation_alias 显式匹配，兼容：CHAT_CONFIG_PATH 等）。
     """
 
+    model_config = ConfigDict(populate_by_name=True)
+
     config_path: str = Field(
-        default_factory=lambda: str(Path(__file__).resolve().parent.parent / "chat_config.yaml")
+        default_factory=lambda: str(Path(__file__).resolve().parent.parent / "chat_config.yaml"),
+        validation_alias="chat_config_path",
     )
-    """YAML 配置文件路径。"""
+    """YAML 配置文件路径（环境变量 CHAT_CONFIG_PATH）。"""
 
-    chat_enabled: bool = True
-    """是否启用聊天功能。"""
+    chat_enabled: bool = Field(default=True, validation_alias="chat_chat_enabled")
+    """是否启用聊天功能（环境变量 CHAT_CHAT_ENABLED）。"""
 
-    only_superusers: bool = True
-    """是否仅允许超级用户使用聊天功能。"""
+    only_superusers: bool = Field(default=True, validation_alias="chat_only_superusers")
+    """是否仅允许超级用户使用聊天功能（环境变量 CHAT_ONLY_SUPERUSERS）。"""
 
 
 class ChatYamlConfig(BaseModel):

@@ -130,12 +130,17 @@ uv add 'nonebot-chat @ git+https://github.com/Xiaji-yu/nonebot_chat.git'
 ### 卸载 git clone 安装（传统项目，有 bot.py）
 
 ```bash
-# 1. 删除插件目录（内含 chat_config.yaml，一并删除）
+# 1. 删除插件目录
 rm -rf <你的bot项目>/plugins/nonebot_chat/
 
 # 2. 移除 bot.py 中的加载语句
 # 删除这一行：
 #   nonebot.load_plugin("plugins.nonebot_chat.chat")
+
+# 3.（若按外置配置方案部署）清理以下残留：
+rm -f chat_config.yaml              # 项目根目录拷贝的配置
+rm -f SOUL.md                       # 人格文件（如使用 prompt_file）
+rm -f chat_history.db               # SQLite 聊天记录
 ```
 
 重启 bot 生效。
@@ -151,6 +156,13 @@ rm -rf <你的bot项目>/plugins/nonebot_chat/
 
 # 3. 移除依赖（如已用 uv add --editable 安装）
 uv remove nonebot-chat
+
+# 4. 清理外置配置残留：
+rm -f chat_config.yaml              # 项目根目录配置
+rm -f SOUL.md                       # 人格文件（如使用 prompt_file）
+rm -f chat_history.db               # SQLite 聊天记录
+# 以及 .env / .env.prod 中移除：
+#   CHAT_CONFIG_PATH=...   CHAT_ONLY_SUPERUSERS=...   CHAT_CHAT_ENABLED=...   LLM_API_KEY=...
 ```
 
 重启（`nb run`）生效。
@@ -166,6 +178,8 @@ pip uninstall nonebot-chat -y
 
 # 3.（nb-cli 项目）同时移除 pyproject.toml [tool.nonebot.plugins] 中的注册行：
 #   "nonebot-chat" = ["chat"]
+
+# 4. 清理外置配置残留（同上：chat_config.yaml / SOUL.md / chat_history.db / .env 相关键）
 ```
 
 重启 bot 生效。
@@ -515,14 +529,17 @@ pipeline:
 
 ```yaml
   trigger:
-    mode: "mention_keyword"  # mention | keyword | mention_keyword | spectator | disabled
-    keywords: ["小助手", "bot"]
+    mode: "mention_keyword"  # 随附 chat_config.yaml 启用的示例值
+    keywords: ["云崽", "小助手"]
 ```
 
 | 字段 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
 | `mode` | string | `"keyword"` | 群聊触发模式：`mention` = 仅 @机器人；`keyword` = 仅含关键词；`mention_keyword` = @机器人 **或** 含关键词（任一）；`spectator` = 所有群消息；`disabled` = 群聊不触发（私聊仍回复） |
 | `keywords` | list[string] | `["小助手", "bot"]` | 触发关键词（`keyword` / `mention_keyword` 模式生效）。子串匹配，不区分大小写 |
+
+> 上表为**代码默认值**；随附的 `chat_config.yaml` 模板启用 `mention_keyword`
+> 模式（关键词含"云崽"），可按需调整。
 
 **注意：** `keyword` / `mention_keyword` 模式下 keywords 不能为空，否则启动报错。
 

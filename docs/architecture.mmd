@@ -29,21 +29,22 @@ classDiagram
     class Personality {
         +name: str
         +system_prompt: str
-        +wake_words: list
+        +prompt_file: str
         +llm_base_url: str
         +llm_model: str
+        +llm_fallbacks: list
         +pipeline_config: PipelineConfig
         +persistence_config: PersistenceConfig
-        +is_wake_word()
         +get_temperature()
         +build_system_message()
     }
 
     class LLMClient {
-        +base_url: str
-        +model: str
-        +chat()
+        +endpoints: list
+        +chat(messages, log_reply)
+        +chat_stream(messages)
         +health_check()
+        +close()
     }
 
     class MemoryStore {

@@ -28,19 +28,31 @@ NoneBot2 智能聊天插件 — 人格驱动对话、记忆系统、主动回复
 
 ### 一键安装（推荐，git clone 方式的自动化）
 
-在包含 `bot.py` 的项目根目录执行：
+在 bot 项目根目录执行：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Xiaji-yu/nonebot_chat/main/scripts/install-plugin.sh | bash
 ```
 
-脚本自动完成以下操作：
+脚本会自动检测项目形态，并分别处理：
+
+**① 传统项目（存在 `bot.py`）**
 
 1. `git clone` 插件到 `plugins/nonebot_chat/`
 2. 在 `bot.py` 的 `nonebot.init()` 后插入 `nonebot.load_plugin("plugins.nonebot_chat.chat")`
 3. 修改前自动备份 `bot.py` 为 `bot.py.bak.<时间戳>`
 
-脚本是幂等的：插件目录已存在或 `bot.py` 已含加载语句时会跳过，可重复执行。
+**② nb-cli 脚手架项目（无 `bot.py`，但 `pyproject.toml` 含 `[tool.nonebot]`）**
+
+1. `git clone` 插件到 `plugins/nonebot_chat/`
+2. 在 `pyproject.toml` 的 `[tool.nonebot.plugins]` 中注册：`"nonebot-chat" = ["chat"]`
+   （若该段不存在则自动追加到文件末尾，不破坏已有结构）
+3. 自动执行 `uv add -e plugins/nonebot_chat`（无 uv 时提示手动 `pip install -e`），
+   使 `import chat` 可用 —— nb-cli 按模块名加载插件，**无需修改任何 py 文件**，直接 `nb run` 即可
+4. 修改前自动备份 `pyproject.toml` 为 `pyproject.toml.bak.<时间戳>`
+
+脚本是幂等的：插件目录已存在、`bot.py` 已含加载语句、或
+`pyproject.toml` 已声明 `nonebot-chat` 时会跳过对应步骤，可重复执行。
 
 **安全提示**：`curl | bash` 会直接执行远程脚本。谨慎的用户可以先下载审阅再运行：
 
@@ -72,6 +84,8 @@ nonebot.load_plugin("plugins.nonebot_chat.chat")
 
 ### 方式二：pip 安装
 
+**传统项目（有 bot.py）：**
+
 ```bash
 # 1. 激活虚拟环境
 source <bot venv>/bin/activate
@@ -85,13 +99,26 @@ pip install git+https://github.com/Xiaji-yu/nonebot_chat.git
 
 将 `chat_config.yaml` 放到 bot 项目根目录，通过 `CHAT_CONFIG_PATH` 环境变量指定路径。
 
-> **注意**：方式二会把插件安装到 Python 的 `site-packages`，**不会**出现在
-> `plugins/` 目录中 —— 这是正常行为（NoneBot 通过 entry point 自动发现），
+**nb-cli 脚手架项目（无 bot.py）：**
+
+```bash
+# 1. 在项目根目录安装
+uv add 'nonebot-chat @ git+https://github.com/Xiaji-yu/nonebot_chat.git'
+# 或 pip install git+https://github.com/Xiaji-yu/nonebot_chat.git
+
+# 2. 在 pyproject.toml 的 [tool.nonebot.plugins] 中注册：
+#   "nonebot-chat" = ["chat"]
+```
+
+直接 `nb run` 即可，无需修改任何 py 文件。
+
+> **注意**：pip 安装会把插件装进 Python 的 `site-packages`，**不会**出现在
+> `plugins/` 目录中 —— 这是正常行为（NoneBot 通过模块名/entry point 加载），
 > 不是安装失败。可通过 `pip show nonebot-chat` 确认已安装。
 
 ## 卸载
 
-### 卸载方式一（git clone 安装）
+### 卸载 git clone 安装（传统项目，有 bot.py）
 
 ```bash
 # 1. 删除插件目录（内含 chat_config.yaml，一并删除）
@@ -102,9 +129,24 @@ rm -rf <你的bot项目>/plugins/nonebot_chat/
 #   nonebot.load_plugin("plugins.nonebot_chat.chat")
 ```
 
-重启 bot 生效。若同时装有方式二，需一并卸载（见下）。
+重启 bot 生效。
 
-### 卸载方式二（pip 安装）
+### 卸载 git clone 安装（nb-cli 脚手架项目，无 bot.py）
+
+```bash
+# 1. 删除插件目录
+rm -rf <你的bot项目>/plugins/nonebot_chat/
+
+# 2. 移除 pyproject.toml [tool.nonebot.plugins] 中的注册行：
+#   "nonebot-chat" = ["chat"]
+
+# 3. 移除依赖（如已用 uv add -e 安装）
+uv remove nonebot-chat
+```
+
+重启（`nb run`）生效。
+
+### 卸载 pip 安装
 
 ```bash
 # 1. 激活虚拟环境
@@ -112,11 +154,14 @@ source <bot venv>/bin/activate
 
 # 2. 卸载插件
 pip uninstall nonebot-chat -y
+
+# 3.（nb-cli 项目）同时移除 pyproject.toml [tool.nonebot.plugins] 中的注册行：
+#   "nonebot-chat" = ["chat"]
 ```
 
 重启 bot 生效。
 
-> **两种方式混装的处理**：若同时用方式一（`plugins/` 目录）和方式二（pip）安装过，
+> **两种方式混装的处理**：若同时用 git clone（`plugins/` 目录）和 pip 安装过，
 > 同一模块会重复注册，需**卸载其一**。建议保留一种，删除另一处（见上方对应卸载步骤）。
 
 ## 配置

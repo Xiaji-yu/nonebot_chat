@@ -4,14 +4,34 @@ set -euo pipefail
 REPO_URL="https://github.com/Xiaji-yu/nonebot_chat.git"
 PLUGIN_DIR="plugins/nonebot_chat"
 LOAD_LINE='nonebot.load_plugin("plugins.nonebot_chat.chat")'
+PYPROJECT_FILE="pyproject.toml"
 
-# 确保在 bot.py 目录下执行
-if [[ ! -f "bot.py" ]]; then
-    echo "错误: 当前目录未找到 bot.py，请切换到 bot.py 所在目录后再运行此脚本。"
+# ------------------------------------------------------------------
+# 0. 项目形态检测
+#    legacy : 传统项目（有 bot.py），通过修改 bot.py 注册
+#    nbcli  : nb-cli 脚手架项目（无 bot.py，pyproject.toml 含 [tool.nonebot]）
+# ------------------------------------------------------------------
+MODE="unknown"
+if [[ -f "bot.py" ]]; then
+    MODE="legacy"
+elif [[ -f "$PYPROJECT_FILE" ]] && grep -q '^\[tool\.nonebot\]' "$PYPROJECT_FILE"; then
+    MODE="nbcli"
+fi
+
+if [[ "$MODE" == "unknown" ]]; then
+    echo "错误: 未检测到可用的项目形态。"
+    echo "  - 传统项目需要存在 bot.py"
+    echo "  - nb-cli 脚手架项目需要 pyproject.toml 且含 [tool.nonebot]"
+    echo "请切换到 bot 项目根目录后重试。"
     exit 1
 fi
 
-# 克隆插件源码
+echo "检测到项目形态: ${MODE}"
+
+# ------------------------------------------------------------------
+# 1. 获取插件源码（两种形态都克隆到 plugins/，方便本地查看/修改）
+# ------------------------------------------------------------------
+mkdir -p plugins
 if [[ -d "$PLUGIN_DIR" ]]; then
     echo "提示: $PLUGIN_DIR 已存在，跳过 git clone。"
 else
@@ -19,29 +39,118 @@ else
     git clone "$REPO_URL" "$PLUGIN_DIR"
 fi
 
-# 修改 bot.py（如尚未加载）
-if grep -qF "$LOAD_LINE" bot.py; then
-    echo "提示: bot.py 已包含插件加载行，跳过修改。"
-else
-    echo "正在修改 bot.py ..."
-    TIMESTAMP=$(date +%Y%m%d%H%M%S)
-    cp "bot.py" "bot.py.bak.$TIMESTAMP"
-
-    if grep -q "nonebot.init()" bot.py; then
-        sed -i "/nonebot.init()/a $LOAD_LINE" bot.py
+# ------------------------------------------------------------------
+# 2a. legacy：修改 bot.py 注册插件
+# ------------------------------------------------------------------
+install_legacy() {
+    if grep -qF "$LOAD_LINE" bot.py; then
+        echo "提示: bot.py 已包含插件加载行，跳过修改。"
     else
-        {
-            echo ""
-            echo "# Auto-loaded by nonebot_chat installer"
-            echo "$LOAD_LINE"
-        } >> bot.py
+        echo "正在修改 bot.py ..."
+        TIMESTAMP=$(date +%Y%m%d%H%M%S)
+        cp "bot.py" "bot.py.bak.$TIMESTAMP"
+
+        if grep -q "nonebot.init()" bot.py; then
+            sed -i "/nonebot.init()/a $LOAD_LINE" bot.py
+        else
+            {
+                echo ""
+                echo "# Auto-loaded by nonebot_chat installer"
+                echo "$LOAD_LINE"
+            } >> bot.py
+        fi
+        echo "已修改 bot.py，原文件备份为 bot.py.bak.$TIMESTAMP"
     fi
-    echo "已修改 bot.py，原文件备份为 bot.py.bak.$TIMESTAMP"
+}
+
+# ------------------------------------------------------------------
+# 2b. nbcli：安装依赖并在 pyproject.toml 注册插件
+# ------------------------------------------------------------------
+install_plugin_deps() {
+    # 可编辑安装本地源码，使 `import chat` 可用（nb-cli 靠模块名加载）
+    if command -v uv >/dev/null 2>&1 && [[ -f "uv.lock" ]]; then
+        uv add -e "$PLUGIN_DIR"
+    elif [[ -n "${VIRTUAL_ENV:-}" ]] && command -v pip >/dev/null 2>&1; then
+        pip install -e "$PLUGIN_DIR"
+    elif [[ -x ".venv/bin/pip" ]]; then
+        .venv/bin/pip install -e "$PLUGIN_DIR"
+    else
+        echo "警告: 未检测到 uv 或虚拟环境，请手动安装插件:"
+        echo "      uv add -e $PLUGIN_DIR   # 或激活 venv 后 pip install -e $PLUGIN_DIR"
+    fi
+}
+
+register_pyproject() {
+    cp "$PYPROJECT_FILE" "$PYPROJECT_FILE.bak.$(date +%Y%m%d%H%M%S)"
+
+    python3 - "$PYPROJECT_FILE" <<'PY'
+import re
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as f:
+    text = f.read()
+
+# 已注册则跳过
+if re.search(r'^"?nonebot-chat"?\s*=', text, re.M):
+    print("pyproject.toml 已声明 nonebot-chat，跳过注册。")
+    sys.exit(0)
+
+# 情形 A: [tool.nonebot.plugins] 段已存在 → 在段内追加一行
+m = re.search(r'^\[tool\.nonebot\.plugins\]\s*$', text, re.M)
+if m:
+    head = text[:m.end()]
+    tail = text[m.end():]
+    nxt = re.search(r'^\s*\[', tail, re.M)
+    if nxt:
+        seg_body, seg_rest = tail[:nxt.start()], tail[nxt.start():]
+    else:
+        seg_body, seg_rest = tail, ""
+    seg_body = seg_body.rstrip("\n")
+    if seg_body.strip():
+        new = head + seg_body + '\n"nonebot-chat" = ["chat"]\n' + seg_rest.lstrip("\n")
+    else:
+        new = head + '\n"nonebot-chat" = ["chat"]\n' + seg_rest.lstrip("\n")
+    text = new
+    print('已在 [tool.nonebot.plugins] 追加: "nonebot-chat" = ["chat"]')
+
+# 情形 B: 尚无该段 → 追加到文件末尾（不破坏已有 [tool.nonebot.*] 结构）
+elif re.search(r'^\[tool\.nonebot\]\s*$', text, re.M):
+    text = text.rstrip("\n") + '\n\n[tool.nonebot.plugins]\n"nonebot-chat" = ["chat"]\n'
+    print('已追加 [tool.nonebot.plugins]: "nonebot-chat" = ["chat"]')
+
+else:
+    print("错误: pyproject.toml 缺少 [tool.nonebot]。", file=sys.stderr)
+    sys.exit(1)
+
+with open(path, "w", encoding="utf-8") as f:
+    f.write(text)
+PY
+}
+
+install_nbcli() {
+    echo "正在注册到 $PYPROJECT_FILE ..."
+    register_pyproject
+    install_plugin_deps
+}
+
+# ------------------------------------------------------------------
+# 3. 汇总
+# ------------------------------------------------------------------
+if [[ "$MODE" == "legacy" ]]; then
+    install_legacy
+else
+    install_nbcli
 fi
 
 echo ""
 echo "=== 安装完成 ==="
 echo "1. 插件源码已克隆到: $PLUGIN_DIR"
-echo "2. bot.py 已更新"
-echo "3. 请将 chat_config.yaml 放到 $PLUGIN_DIR/ 目录下（或设置 CHAT_CONFIG_PATH 环境变量）"
-echo "4. 重启 bot 即可"
+if [[ "$MODE" == "legacy" ]]; then
+    echo "2. bot.py 已更新"
+else
+    echo "2. pyproject.toml 已注册 [tool.nonebot.plugins]"
+    echo "3. 启动方式: nb run"
+fi
+echo "请将 chat_config.yaml 放到项目根目录（或设置 CHAT_CONFIG_PATH 环境变量指向其路径）"
+echo "插件源码内的 chat_config.yaml 位于 $PLUGIN_DIR/chat_config.yaml"

@@ -9,6 +9,7 @@ __author__ = "Xiaji-yu"
 from typing import Any
 
 from ..log import logger
+from ..mask import mask_session
 from .store import MemoryStore
 
 # 蒸馏专用系统提示词
@@ -69,13 +70,13 @@ class MemoryDistiller:
         ]
 
         logger.info(
-            f"Distilling session {session_id} ({len(user_msgs)} messages) ..."
+            f"Distilling session {mask_session(session_id)} ({len(user_msgs)} messages) ..."
         )
 
         try:
             response = await self._llm.chat(messages, temperature=0.3, log_reply=False)
         except Exception as exc:
-            logger.error(f"Distillation failed for {session_id}: {exc}")
+            logger.error(f"Distillation failed for {mask_session(session_id)}: {exc}")
             return None
 
         if not response:
@@ -94,7 +95,7 @@ class MemoryDistiller:
             session = await self._store._get_or_create(session_id)
             session.messages.clear()
             logger.info(
-                f"Distillation complete for {session_id}: "
+                f"Distillation complete for {mask_session(session_id)}: "
                 f"{len(summaries)} core memories stored."
             )
             # 持久化摘要
@@ -103,7 +104,7 @@ class MemoryDistiller:
                     self._persistence.save_summaries(session_id, summaries)
                 except Exception:
                     logger.warning(
-                        f"Failed to persist summaries for session {session_id}",
+                        f"Failed to persist summaries for session {mask_session(session_id)}",
                         exc_info=True,
                     )
         return summaries

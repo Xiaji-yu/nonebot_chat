@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..log import logger
+from ..mask import mask_session
 
 
 @dataclass
@@ -163,7 +164,7 @@ class MemoryStore:
             self._persistence.save_message(session_id, user_id, group_id, role, content)
         except Exception:
             logger.warning(
-                f"Failed to persist message (session={session_id}, role={role})",
+                f"Failed to persist message (session={mask_session(session_id)}, role={role})",
                 exc_info=True,
             )
 

@@ -11,6 +11,7 @@ import hashlib
 import time
 
 from ..log import logger
+from ..mask import mask_session
 
 # 存储结构: {(session_id, content_hash): timestamp}
 _dedup_store: dict[tuple[str, str], float] = {}
@@ -43,7 +44,7 @@ async def check(session_id: str, content: str, window: float = 5.0) -> bool:
 
         last = _dedup_store.get(key)
         if last is not None and (now - last) < window:
-            logger.debug(f"Dedup hit: session={session_id}, age={now - last:.1f}s")
+            logger.debug(f"Dedup hit: session={mask_session(session_id)}, age={now - last:.1f}s")
             return True
 
         _dedup_store[key] = now

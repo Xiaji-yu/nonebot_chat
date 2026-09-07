@@ -10,6 +10,7 @@ import time
 from typing import Any
 
 from ..log import logger
+from ..mask import mask_user
 from .access import AccessController
 from .admin import (
     CMD_CLEAR_MEMORY,
@@ -106,7 +107,7 @@ class Pipeline:
         # Stage 2: 黑白名单
         allowed, reason = self._access.check(user_id, group_id)
         if not allowed:
-            logger.debug(f"Dropped: access denied ({reason}) user={user_id}")
+            logger.debug(f"Dropped: access denied ({reason}) user={mask_user(user_id)}")
             return
 
         # Stage 3: 静默关键词
@@ -140,7 +141,10 @@ class Pipeline:
                     event, session_id, merged, send_func, is_private,
                     user_id, group_id, stream, skip_trigger=True,
                 )
-                await self._maybe_proactive(session_id, send_func)
+                # disabled 群聊全静默：既不应答也不主动发言
+                group_trigger_off = (not is_private) and (not self._trigger.enabled())
+                if not group_trigger_off:
+                    await self._maybe_proactive(session_id, send_func)
 
             await self._debounce.submit(
                 session_id, text, _debounce_and_process, triggered=batch_triggered

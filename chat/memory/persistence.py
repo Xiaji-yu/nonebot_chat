@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from ..log import logger
+from ..mask import mask_session, mask_user
 
 # ── 常量 ──────────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ class ChatPersistence:
             )
             self._conn.commit()
         except sqlite3.Error as exc:
-            logger.warning(f"Failed to persist message (session={session_id}): {exc}")
+            logger.warning(f"Failed to persist message (session={mask_session(session_id)}): {exc}")
 
     # ------------------------------------------------------------------
     # 摘要写入
@@ -134,7 +135,7 @@ class ChatPersistence:
             )
             self._conn.commit()
         except sqlite3.Error as exc:
-            logger.warning(f"Failed to persist summary (session={session_id}): {exc}")
+            logger.warning(f"Failed to persist summary (session={mask_session(session_id)}): {exc}")
 
     def save_summaries(self, session_id: str, summaries: list[str]) -> None:
         """批量保存蒸馏摘要。
@@ -154,7 +155,9 @@ class ChatPersistence:
             )
             self._conn.commit()
         except sqlite3.Error as exc:
-            logger.warning(f"Failed to persist summaries (session={session_id}): {exc}")
+            logger.warning(
+                f"Failed to persist summaries (session={mask_session(session_id)}): {exc}"
+            )
 
     # ------------------------------------------------------------------
     # 查询
@@ -178,7 +181,7 @@ class ChatPersistence:
             ).fetchall()
             return [row[0] for row in rows]
         except sqlite3.Error as exc:
-            logger.warning(f"Failed to get summaries (session={session_id}): {exc}")
+            logger.warning(f"Failed to get summaries (session={mask_session(session_id)}): {exc}")
             return []
 
     def get_messages(
@@ -227,7 +230,7 @@ class ChatPersistence:
                 for row in reversed(rows)  # 按时间升序返回
             ]
         except sqlite3.Error as exc:
-            logger.warning(f"Failed to get messages (session={session_id}): {exc}")
+            logger.warning(f"Failed to get messages (session={mask_session(session_id)}): {exc}")
             return []
 
     def get_user_messages(
@@ -269,7 +272,7 @@ class ChatPersistence:
                 for row in reversed(rows)
             ]
         except sqlite3.Error as exc:
-            logger.warning(f"Failed to get user messages (user={user_id}): {exc}")
+            logger.warning(f"Failed to get user messages (user={mask_user(user_id)}): {exc}")
             return []
 
     # ------------------------------------------------------------------

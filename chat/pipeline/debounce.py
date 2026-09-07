@@ -12,6 +12,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from ..log import logger
+from ..mask import mask_session
 
 # 类型别名
 SendFunc = Callable[[str], Awaitable[Any]]
@@ -92,7 +93,7 @@ class Debouncer:
         if not any_triggered:
             logger.debug(
                 f"[debounce] 批内无触发消息，丢弃 {len(messages)} 条 "
-                f"(session={session_id})"
+                f"(session={mask_session(session_id)})"
             )
             return
 
@@ -106,7 +107,7 @@ class Debouncer:
         try:
             await reply_callback(merged)
         except Exception:
-            logger.exception(f"Debounced reply failed for session {session_id}")
+            logger.exception(f"Debounced reply failed for session {mask_session(session_id)}")
 
     def cancel(self, session_id: str) -> None:
         """取消指定会话的防抖计时。"""

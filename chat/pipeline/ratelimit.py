@@ -11,6 +11,7 @@ import time
 from typing import Any
 
 from ..log import logger
+from ..mask import mask_session
 
 
 class RateLimiter:
@@ -49,7 +50,7 @@ class RateLimiter:
                 # 取最早的未过期记录，计算 retry_after
                 retry = timestamps[0] + self._window - now
                 logger.debug(
-                    f"Rate limited: session={session_id}, "
+                    f"Rate limited: session={mask_session(session_id)}, "
                     f"count={len(timestamps)}/{self._limit}"
                 )
                 return False, max(retry, 0.0)

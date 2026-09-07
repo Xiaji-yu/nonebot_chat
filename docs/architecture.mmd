@@ -1,0 +1,186 @@
+classDiagram
+    class NoneBot {
+        +get_driver()
+        +get_plugin_config()
+    }
+
+    class chat_init {
+        +_init()
+        +_cleanup_loop()
+        +__getattr__()
+    }
+
+    class ChatConfig {
+        +config_path: str
+        +chat_enabled: bool
+        +only_superusers: bool
+    }
+
+    class ChatYamlConfig {
+        +personality: PersonalityConfig
+        +llm: LLMConfig
+        +temperature: TemperatureConfig
+        +memory: MemoryConfig
+        +proactive: ProactiveConfig
+        +persistence: PersistenceConfig
+        +pipeline: PipelineConfig
+    }
+
+    class Personality {
+        +name: str
+        +system_prompt: str
+        +wake_words: list
+        +llm_base_url: str
+        +llm_model: str
+        +pipeline_config: PipelineConfig
+        +persistence_config: PersistenceConfig
+        +is_wake_word()
+        +get_temperature()
+        +build_system_message()
+    }
+
+    class LLMClient {
+        +base_url: str
+        +model: str
+        +chat()
+        +health_check()
+    }
+
+    class MemoryStore {
+        +sessions: dict
+        +add_user_message()
+        +add_assistant_message()
+        +get_history()
+        +needs_distillation()
+        +try_begin_distill()
+        +end_distill()
+        +set_core_memory()
+        +clear_session()
+    }
+
+    class MemoryDistiller {
+        +distill()
+        +_build_prompt()
+    }
+
+    class ChatPersistence {
+        +enabled: bool
+        +save_message()
+        +save_summaries()
+        +get_messages()
+        +get_summaries()
+        +cleanup_old_messages()
+        +get_stats()
+    }
+
+    class ProactiveReplier {
+        +should_reply()
+        +generate_and_reply()
+        +_generate()
+        +_send()
+    }
+
+    class Pipeline {
+        +process()
+        +set_proactive()
+        +_process_once()
+        +_maybe_proactive()
+    }
+
+    class SleepController {
+        +is_sleeping()
+        +is_override_allowed()
+        +toggle()
+        +force_wake()
+    }
+
+    class AccessController {
+        +check()
+    }
+
+    class SilentFilter {
+        +is_silent()
+    }
+
+    class RateLimiter {
+        +check()
+        +reset()
+        +reset_all()
+    }
+
+    class TriggerDetector {
+        +detect()
+        +is_mention()
+    }
+
+    class AdminInterceptor {
+        +intercept()
+        +register()
+    }
+
+    class Debouncer {
+        +submit()
+        +cancel()
+    }
+
+    class AIDispatcher {
+        +dispatch()
+        +_build_messages()
+    }
+
+    class MessageFormatter {
+        +format()
+        +_convert_markdown()
+        +_split()
+    }
+
+    class MessageSender {
+        +send()
+        +send_batch()
+    }
+
+    class Matchers {
+        +setup_matchers()
+        +get_session_id()
+    }
+
+    NoneBot <-- chat_init : 启动时加载
+    chat_init --> ChatConfig : 读取配置
+    chat_init --> Personality : 初始化
+    chat_init --> LLMClient : 初始化
+    chat_init --> MemoryStore : 初始化
+    chat_init --> MemoryDistiller : 初始化
+    chat_init --> ProactiveReplier : 初始化
+    chat_init --> ChatPersistence : 可选初始化
+    chat_init --> Matchers : 注册匹配器
+
+    Personality --> ChatYamlConfig : 加载/验证 YAML
+    Personality --> ChatConfig : 读取 config_path
+    Personality --> LLMConfig : 委托
+    Personality --> PipelineConfig : 委托
+    Personality --> PersistenceConfig : 委托
+
+    MemoryStore --> ChatPersistence : 旁路写入
+    MemoryDistiller --> MemoryStore : 读取/写入会话
+    MemoryDistiller --> LLMClient : 调用 LLM
+
+    Pipeline --> SleepController : Stage 0
+    Pipeline --> AccessController : Stage 2
+    Pipeline --> SilentFilter : Stage 3
+    Pipeline --> RateLimiter : Stage 4
+    Pipeline --> AdminInterceptor : Stage 5
+    Pipeline --> Debouncer : Stage 6
+    Pipeline --> TriggerDetector : Stage 7
+    Pipeline --> AIDispatcher : Stage 8
+    Pipeline --> MessageFormatter : Stage 9
+    Pipeline --> MessageSender : Stage 10
+    Pipeline --> ProactiveReplier : 注入
+
+    Matchers --> Pipeline : 创建实例
+
+    AIDispatcher --> LLMClient : 调用
+    AIDispatcher --> MemoryStore : 读取/写入
+    AIDispatcher --> MemoryDistiller : 触发蒸馏
+    AIDispatcher --> TriggerDetector : 依赖注入
+
+    MessageSender --> MessageFormatter : 接收分片

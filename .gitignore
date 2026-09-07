@@ -32,3 +32,6 @@ Thumbs.db
 
 # Project-specific
 chat_config.local.yaml
+
+# Node.js (diagram rendering toolchain)
+node_modules/

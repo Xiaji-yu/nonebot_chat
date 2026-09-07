@@ -1,0 +1,29 @@
+flowchart TD
+    A[入站消息] --> B{休眠检测<br/>SleepController}
+    B -- 休眠中 & 无 mention --> Z[Drop]
+    B -- 休眠中 & mention & override --> C[去重<br/>Dedup]
+    B -- 未休眠 --> C
+
+    C -- 重复 --> Z
+    C -- 首次 --> D{黑白名单<br/>AccessController}
+    D -- 拒绝 --> Z
+    D -- 允许 --> E{静默关键词<br/>SilentFilter}
+    E -- 命中 --> Z
+    E -- 未命中 --> F{频控<br/>RateLimiter}
+    F -- 超限 --> Z
+    F -- 允许 --> G{管理命令<br/>AdminInterceptor}
+    G -- 命中命令 --> H[执行管理命令<br/>clear/status/sleep/wake]
+    G -- 普通消息 --> I{防抖合并<br/>Debouncer}
+    I -- 等待窗口 --> I
+    I -- 窗口结束 --> J{触发检测<br/>TriggerDetector}
+    J -- 未触发 --> Z
+    J -- 触发 --> K[AI 派发<br/>AIDispatcher]
+    K --> L[消息格式化<br/>MessageFormatter]
+    L --> M[消息发送<br/>MessageSender]
+    M --> N[用户收到回复]
+
+    O[主动回复检查<br/>ProactiveReplier] --> P{概率 + 冷却}
+    P -- 不触发 --> Q[结束]
+    P -- 触发 --> R[LLM 生成]
+    R --> S[发送主动消息]
+    S --> Q

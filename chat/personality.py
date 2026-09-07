@@ -105,16 +105,6 @@ class Personality:
             return self._prompt_from_file
         return self._yaml.personality.system_prompt
 
-    @property
-    def wake_words(self) -> list[str]:
-        """唤醒词列表（小写）。"""
-        return [w.lower() for w in self._yaml.personality.wake_words]
-
-    def is_wake_word(self, text: str) -> bool:
-        """检查消息是否命中任何唤醒词。"""
-        lower = text.lower()
-        return any(word in lower for word in self.wake_words)
-
     def build_system_message(self) -> dict[str, str]:
         """构建系统消息（OpenAI Chat 格式）。"""
         return {

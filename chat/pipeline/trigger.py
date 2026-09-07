@@ -1,15 +1,12 @@
 """
 @Author         : Xiaji-yu
 @Date           : 2026-06-18
-@Description    : Trigger detection — mention / keyword / spectator modes
+@Description    : Trigger detection — mention / keyword / mention_keyword / spectator / disabled
 """
 
 __author__ = "Xiaji-yu"
 
-import logging
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 # 常量
 SEG_TYPE_AT = "at"
@@ -17,19 +14,29 @@ SEG_DATA_QQ = "qq"
 
 
 class TriggerDetector:
-    """触发检测器。
+    """触发检测器（群聊触发规则，私聊不经此检测）。
 
-    支持三种模式：
-    - mention: 必须 @机器人 才触发
-    - keyword: 消息命中关键词才触发
-    - spectator: 旁观模式，所有消息都视为"触发"
+    支持五种模式：
+    - mention:          仅 @机器人 触发
+    - keyword:          消息命中关键词触发
+    - mention_keyword:  @机器人 或 命中关键词，任一即触发
+    - spectator:        所有消息都视为"触发"
+    - disabled:         不触发（群聊不回复，私聊仍直接处理）
     """
 
     MODE_MENTION = "mention"
     MODE_KEYWORD = "keyword"
+    MODE_MENTION_KEYWORD = "mention_keyword"
     MODE_SPECTATOR = "spectator"
+    MODE_DISABLED = "disabled"
 
-    VALID_MODES = frozenset({MODE_MENTION, MODE_KEYWORD, MODE_SPECTATOR})
+    VALID_MODES = frozenset({
+        MODE_MENTION,
+        MODE_KEYWORD,
+        MODE_MENTION_KEYWORD,
+        MODE_SPECTATOR,
+        MODE_DISABLED,
+    })
 
     def __init__(self, trigger_config: Any) -> None:
         self._mode = trigger_config.mode
@@ -40,13 +47,20 @@ class TriggerDetector:
             )
         self._keywords: list[str] = [kw.lower() for kw in trigger_config.keywords]
 
-        if self._mode == self.MODE_KEYWORD and not self._keywords:
-            raise ValueError("keyword trigger mode requires at least one keyword")
+        keyword_based = {self.MODE_KEYWORD, self.MODE_MENTION_KEYWORD}
+        if self._mode in keyword_based and not self._keywords:
+            raise ValueError(
+                f"{self._mode} trigger mode requires at least one keyword"
+            )
 
     @property
     def mode(self) -> str:
         """当前触发模式。"""
         return self._mode
+
+    def enabled(self) -> bool:
+        """是否启用触发（disabled 返回 False）。"""
+        return self._mode != self.MODE_DISABLED
 
     def detect(self, event: Any) -> tuple[bool, str]:
         """检测消息是否满足触发条件。
@@ -57,24 +71,34 @@ class TriggerDetector:
         Returns:
             (triggered, trigger_type) — 是否触发及触发类型。
         """
+        if self._mode == self.MODE_DISABLED:
+            return False, ""
+
         if self._mode == self.MODE_SPECTATOR:
             return True, "spectator"
 
+        mentioned = self._is_mentioned(event)
+
         if self._mode == self.MODE_MENTION:
-            if self._is_mentioned(event):
+            if mentioned:
                 return True, "mention"
             return False, ""
 
-        if self._mode == self.MODE_KEYWORD:
-            raw = event.get_plaintext()
-            text = (raw or "").lower()
-            for kw in self._keywords:
-                if kw in text:
-                    return True, f"keyword:{kw}"
+        # keyword / mention_keyword
+        raw = event.get_plaintext()
+        text = (raw or "").lower()
+        hit = next((kw for kw in self._keywords if kw in text), None)
+
+        if self._mode == self.MODE_MENTION_KEYWORD:
+            if mentioned:
+                return True, "mention"
+            if hit:
+                return True, f"keyword:{hit}"
             return False, ""
 
-        # 不应到达（__init__ 已校验）
-        logger.error("Unknown trigger mode: %s", self._mode)
+        # MODE_KEYWORD
+        if hit:
+            return True, f"keyword:{hit}"
         return False, ""
 
     def is_mention(self, event: Any) -> bool:

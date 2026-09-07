@@ -71,9 +71,6 @@ class PersonalityConfig(BaseModel):
     未设置时自动查找配置目录下的 SOUL.md。
     """
 
-    wake_words: list[str] = Field(default=["小助手", "bot"])
-    """唤醒词列表。仅当消息命中唤醒词时才触发回复（主动回复除外）。"""
-
 
 class LLMEndpointConfig(BaseModel):
     """备用 LLM 端点（fallback）配置。"""
@@ -254,13 +251,23 @@ class RateLimitConfig(BaseModel):
 
 
 class TriggerConfig(BaseModel):
-    """触发检测配置。"""
+    """触发检测配置（群聊触发规则）。
 
-    mode: Literal["mention", "keyword", "spectator"] = Field(default="keyword")
-    """触发模式：mention（@提及）、keyword（关键词）、spectator（旁观模式）。"""
+    mode:
+      - mention:          仅 @机器人 触发
+      - keyword:          仅消息含关键词触发
+      - mention_keyword:  @机器人 或 含关键词 即触发（任一命中）
+      - spectator:        所有群消息都触发
+      - disabled:         群聊不触发（私聊仍直接回复）
+    """
+
+    mode: Literal[
+        "mention", "keyword", "mention_keyword", "spectator", "disabled"
+    ] = Field(default="keyword")
+    """群聊触发模式（私聊始终直接回复，不经触发检测）。"""
 
     keywords: list[str] = Field(default=["小助手", "bot"])
-    """关键词列表（keyword 模式下生效）。"""
+    """触发关键词列表（keyword / mention_keyword 模式下生效）。"""
 
 
 class SleepScheduleConfig(BaseModel):

@@ -57,7 +57,6 @@ class TestConfigIntegration:
 personality:
   name: "测试助手"
   system_prompt: "你是一个测试助手。"
-  wake_words: ["测试"]
 
 llm:
   base_url: "http://localhost:11434/v1"

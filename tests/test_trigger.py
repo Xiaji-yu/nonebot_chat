@@ -145,3 +145,49 @@ class TestTriggerBoundary:
     def test_mode_property(self) -> None:
         detector = TriggerDetector(make_config("spectator"))
         assert detector.mode == "spectator"
+
+# ── Mention+Keyword 模式 ───────────────────────────────────────────
+
+
+class TestMentionKeywordMode:
+    def test_mention_triggers(self) -> None:
+        detector = TriggerDetector(make_config("mention_keyword", ["云崽"]))
+        event = make_event("hello", is_tome=True)
+        triggered, trigger_type = detector.detect(event)
+        assert triggered is True
+        assert trigger_type == "mention"
+
+    def test_keyword_triggers_without_mention(self) -> None:
+        detector = TriggerDetector(make_config("mention_keyword", ["云崽"]))
+        event = make_event("云崽 你好", is_tome=False)
+        triggered, trigger_type = detector.detect(event)
+        assert triggered is True
+        assert trigger_type == "keyword:云崽"
+
+    def test_neither_triggers(self) -> None:
+        detector = TriggerDetector(make_config("mention_keyword", ["云崽"]))
+        event = make_event("随便聊聊", is_tome=False)
+        triggered, _ = detector.detect(event)
+        assert triggered is False
+
+    def test_empty_keywords_raises(self) -> None:
+        with pytest.raises(ValueError, match="mention_keyword"):
+            TriggerDetector(make_config("mention_keyword", []))
+
+
+# ── Disabled 模式 ─────────────────────────────────────────────────
+
+
+class TestDisabledMode:
+    def test_disabled_never_triggers(self) -> None:
+        detector = TriggerDetector(make_config("disabled"))
+        assert detector.detect(make_event("云崽 你好"))[0] is False
+        assert detector.detect(make_event("任何消息", is_tome=True))[0] is False
+
+    def test_enabled_flag_false(self) -> None:
+        detector = TriggerDetector(make_config("disabled"))
+        assert detector.enabled() is False
+
+    def test_other_modes_enabled_flag_true(self) -> None:
+        for mode in ("mention", "keyword", "mention_keyword", "spectator"):
+            assert TriggerDetector(make_config(mode, ["bot"])).enabled() is True

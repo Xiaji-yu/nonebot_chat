@@ -9,7 +9,7 @@ __author__ = "Xiaji-yu"
 import time
 from typing import Any
 
-from ..logger import logger
+from ..log import logger
 from .trigger import TriggerDetector
 
 

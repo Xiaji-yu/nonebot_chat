@@ -106,7 +106,7 @@ class Pipeline:
         # Stage 2: 黑白名单
         allowed, reason = self._access.check(user_id, group_id)
         if not allowed:
-            logger.debug("Dropped: access denied (%s) user=%s", reason, user_id)
+            logger.debug(f"Dropped: access denied ({reason}) user={user_id}")
             return
 
         # Stage 3: 静默关键词
@@ -117,7 +117,7 @@ class Pipeline:
         # Stage 4: 频控
         allowed, retry = await self._ratelimit.check(session_id)
         if not allowed:
-            logger.debug("Dropped: rate limited (retry in %.1fs)", retry)
+            logger.debug(f"Dropped: rate limited (retry in {retry:.1f}s)")
             return
 
         # Stage 5: 管理命令拦截（不走 debounce，立即执行）

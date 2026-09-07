@@ -26,6 +26,35 @@ NoneBot2 智能聊天插件 — 人格驱动对话、记忆系统、主动回复
 
 ## 安装
 
+### 一键安装（推荐，git clone 方式的自动化）
+
+在包含 `bot.py` 的项目根目录执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Xiaji-yu/nonebot_chat/main/scripts/install-plugin.sh | bash
+```
+
+脚本自动完成以下操作：
+
+1. `git clone` 插件到 `plugins/nonebot_chat/`
+2. 在 `bot.py` 的 `nonebot.init()` 后插入 `nonebot.load_plugin("plugins.nonebot_chat.chat")`
+3. 修改前自动备份 `bot.py` 为 `bot.py.bak.<时间戳>`
+
+脚本是幂等的：插件目录已存在或 `bot.py` 已含加载语句时会跳过，可重复执行。
+
+**安全提示**：`curl | bash` 会直接执行远程脚本。谨慎的用户可以先下载审阅再运行：
+
+```bash
+# 先下载审阅
+curl -fsSL -o install-plugin.sh \
+  https://raw.githubusercontent.com/Xiaji-yu/nonebot_chat/main/scripts/install-plugin.sh
+
+# 确认无误后执行
+bash install-plugin.sh
+```
+
+脚本源码见 [`scripts/install-plugin.sh`](scripts/install-plugin.sh)。
+
 ### 方式一：git clone 到 plugins 目录（推荐，服务器部署）
 
 ```bash

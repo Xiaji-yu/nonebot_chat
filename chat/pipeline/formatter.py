@@ -6,11 +6,8 @@
 
 __author__ = "Xiaji-yu"
 
-import logging
 import re
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 
 class MessageFormatter:

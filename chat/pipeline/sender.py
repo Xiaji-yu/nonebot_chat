@@ -6,11 +6,10 @@
 
 __author__ = "Xiaji-yu"
 
-import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from ..log import logger
 
 # 类型别名
 SendFunc = Callable[[str], Awaitable[Any]]
@@ -31,7 +30,7 @@ class MessageSender:
         if self._send is not None:
             await self._send(text)
         else:
-            logger.warning("No send function configured, message dropped: %.50s...", text)
+            logger.warning(f"No send function configured, message dropped: {text:.50}...")
 
     async def send_batch(self, parts: list[str]) -> None:
         """批量发送分片消息。
@@ -40,7 +39,7 @@ class MessageSender:
             parts: 消息分片列表。
         """
         for i, part in enumerate(parts):
-            logger.debug("Sending part %d/%d (%d chars)", i + 1, len(parts), len(part))
+            logger.debug(f"Sending part {i + 1}/{len(parts)} ({len(part)} chars)")
             await self.send(part)
 
     async def send_stream(self, chunks: list[str]) -> None:

@@ -7,18 +7,16 @@
 __author__ = "Xiaji-yu"
 
 import hashlib
-import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from .config import ChatConfig
 from .llm import LLMClient
+from .log import logger
 from .memory import MemoryDistiller, MemoryStore
 from .personality import Personality
 from .pipeline import Pipeline
 from .proactive import ProactiveReplier
-
-logger = logging.getLogger(__name__)
 
 # 类型别名
 SendFunc = Callable[[str], Awaitable[Any]]
@@ -135,7 +133,6 @@ def setup_matchers(
         )
 
     logger.info(
-        "Chat matchers registered (only_superusers=%s, trigger=%s).",
-        config.only_superusers,
-        personality.pipeline_config.trigger.mode,
+        f"Chat matchers registered (only_superusers={config.only_superusers}, "
+        f"trigger={personality.pipeline_config.trigger.mode})."
     )

@@ -156,13 +156,16 @@ class TestMockDemo:
         assert sample_event.group_id == 987654321
         assert sample_event.get_plaintext() == "小助手 你好"
 
-    @patch("chat.pipeline.silent.logger")
-    def test_silent_filter_logs_debug(self, mock_logger: MagicMock) -> None:
-        """验证内部日志行为（可选，按需启用）。"""
-        sf = SilentFilter(make_silent_config(["测试"]))
-        sf.is_silent("这是一个测试")
-        # 仅展示 patch 用法；不强制断言日志细节
-        assert mock_logger is not None
+    @patch("chat.pipeline.sender.logger")
+    def test_sender_logs_warning_without_func(self, mock_logger: MagicMock) -> None:
+        """演示 patch 模块 logger（sender 无发送函数时打 warning）。"""
+        from chat.pipeline.sender import MessageSender
+
+        sender = MessageSender(None)
+        import asyncio
+
+        asyncio.run(sender.send("消息被丢弃"))
+        mock_logger.warning.assert_called_once()
 
 
 # ======================================================================

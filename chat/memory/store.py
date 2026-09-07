@@ -7,12 +7,11 @@
 __author__ = "Xiaji-yu"
 
 import asyncio
-import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from ..log import logger
 
 
 @dataclass
@@ -164,8 +163,8 @@ class MemoryStore:
             self._persistence.save_message(session_id, user_id, group_id, role, content)
         except Exception:
             logger.warning(
-                "Failed to persist message (session=%s, role=%s)",
-                session_id, role, exc_info=True,
+                f"Failed to persist message (session={session_id}, role={role})",
+                exc_info=True,
             )
 
     async def get_history(self, session_id: str, max_count: int = 50) -> list[dict[str, Any]]:

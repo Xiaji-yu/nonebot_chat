@@ -6,13 +6,12 @@
 
 from __future__ import annotations
 
-import logging
 import sqlite3
 import time
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from ..log import logger
 
 # ── 常量 ──────────────────────────────────────────────────────────
 
@@ -75,7 +74,7 @@ class ChatPersistence:
             self._conn.execute("PRAGMA synchronous=NORMAL")
             self._conn.executescript(_DDL)
             self._conn.commit()
-            logger.info("Chat persistence initialized: %s", self._db_path)
+            logger.info(f"Chat persistence initialized: {self._db_path}")
 
     @property
     def enabled(self) -> bool:
@@ -113,7 +112,7 @@ class ChatPersistence:
             )
             self._conn.commit()
         except sqlite3.Error as exc:
-            logger.warning("Failed to persist message (session=%s): %s", session_id, exc)
+            logger.warning(f"Failed to persist message (session={session_id}): {exc}")
 
     # ------------------------------------------------------------------
     # 摘要写入
@@ -135,7 +134,7 @@ class ChatPersistence:
             )
             self._conn.commit()
         except sqlite3.Error as exc:
-            logger.warning("Failed to persist summary (session=%s): %s", session_id, exc)
+            logger.warning(f"Failed to persist summary (session={session_id}): {exc}")
 
     def save_summaries(self, session_id: str, summaries: list[str]) -> None:
         """批量保存蒸馏摘要。
@@ -155,7 +154,7 @@ class ChatPersistence:
             )
             self._conn.commit()
         except sqlite3.Error as exc:
-            logger.warning("Failed to persist summaries (session=%s): %s", session_id, exc)
+            logger.warning(f"Failed to persist summaries (session={session_id}): {exc}")
 
     # ------------------------------------------------------------------
     # 查询
@@ -179,7 +178,7 @@ class ChatPersistence:
             ).fetchall()
             return [row[0] for row in rows]
         except sqlite3.Error as exc:
-            logger.warning("Failed to get summaries (session=%s): %s", session_id, exc)
+            logger.warning(f"Failed to get summaries (session={session_id}): {exc}")
             return []
 
     def get_messages(
@@ -228,7 +227,7 @@ class ChatPersistence:
                 for row in reversed(rows)  # 按时间升序返回
             ]
         except sqlite3.Error as exc:
-            logger.warning("Failed to get messages (session=%s): %s", session_id, exc)
+            logger.warning(f"Failed to get messages (session={session_id}): {exc}")
             return []
 
     def get_user_messages(
@@ -270,7 +269,7 @@ class ChatPersistence:
                 for row in reversed(rows)
             ]
         except sqlite3.Error as exc:
-            logger.warning("Failed to get user messages (user=%s): %s", user_id, exc)
+            logger.warning(f"Failed to get user messages (user={user_id}): {exc}")
             return []
 
     # ------------------------------------------------------------------
@@ -297,11 +296,12 @@ class ChatPersistence:
             deleted = cursor.rowcount
             if deleted > 0:
                 logger.info(
-                "Cleaned up %d old messages (retention=%d days)", deleted, retention_days
-            )
+                    f"Cleaned up {deleted} old messages "
+                    f"(retention={retention_days} days)"
+                )
             return deleted
         except sqlite3.Error as exc:
-            logger.warning("Failed to cleanup old messages: %s", exc)
+            logger.warning(f"Failed to cleanup old messages: {exc}")
             return 0
 
     def get_stats(self) -> dict[str, int]:
@@ -328,7 +328,7 @@ class ChatPersistence:
         if self._conn:
             try:
                 self._conn.close()
-                logger.info("Chat persistence closed: %s", self._db_path)
+                logger.info(f"Chat persistence closed: {self._db_path}")
             except sqlite3.Error as exc:
-                logger.warning("Failed to close persistence: %s", exc)
+                logger.warning(f"Failed to close persistence: {exc}")
             self._conn = None

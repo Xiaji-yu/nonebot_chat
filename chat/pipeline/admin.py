@@ -6,11 +6,8 @@
 
 __author__ = "Xiaji-yu"
 
-import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 # 类型别名
 SendFunc = Callable[[str], Awaitable[Any]]
@@ -99,3 +96,4 @@ class AdminInterceptor:
         if cmd == "test_model":
             return CMD_TEST_MODEL
         return None
+

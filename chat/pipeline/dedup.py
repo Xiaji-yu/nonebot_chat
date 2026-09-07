@@ -8,10 +8,9 @@ __author__ = "Xiaji-yu"
 
 import asyncio
 import hashlib
-import logging
 import time
 
-logger = logging.getLogger(__name__)
+from ..log import logger
 
 # 存储结构: {(session_id, content_hash): timestamp}
 _dedup_store: dict[tuple[str, str], float] = {}
@@ -44,7 +43,7 @@ async def check(session_id: str, content: str, window: float = 5.0) -> bool:
 
         last = _dedup_store.get(key)
         if last is not None and (now - last) < window:
-            logger.debug("Dedup hit: session=%s, age=%.1fs", session_id, now - last)
+            logger.debug(f"Dedup hit: session={session_id}, age={now - last:.1f}s")
             return True
 
         _dedup_store[key] = now

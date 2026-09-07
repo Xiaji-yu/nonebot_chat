@@ -8,7 +8,6 @@ from __future__ import annotations
 
 # Author: Xiaji-yu
 import asyncio
-import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -18,7 +17,7 @@ if TYPE_CHECKING:
     from .personality import Personality
     from .proactive import ProactiveReplier
 
-logger = logging.getLogger(__name__)
+from .log import logger
 
 _chat_config: ChatConfig | None = None
 _personality: Personality | None = None
@@ -98,10 +97,8 @@ def _init() -> None:
     @driver.on_startup
     async def _on_startup() -> None:
         logger.info(
-            "Chat plugin initializing: personality=%s, model=%s, base_url=%s",
-            _personality.name,
-            _personality.llm_model,
-            _personality.llm_base_url,
+            f"Chat plugin initializing: personality={_personality.name}, "
+            f"model={_personality.llm_model}, base_url={_personality.llm_base_url}"
         )
 
         setup_matchers(
@@ -114,17 +111,14 @@ def _init() -> None:
         )
 
         logger.info(
-            "Memory store ready (max_history=%d).",
-            _personality.memory_max_history,
+            f"Memory store ready (max_history={_personality.memory_max_history})."
         )
 
         if _persistence is not None and _persistence.enabled:
             stats = _persistence.get_stats()
             logger.info(
-                "Persistence ready: %s, messages=%d, summaries=%d",
-                persistence_cfg.db_path,
-                stats["message_count"],
-                stats["summary_count"],
+                f"Persistence ready: {persistence_cfg.db_path}, "
+                f"messages={stats['message_count']}, summaries={stats['summary_count']}"
             )
             # 启动定时清理任务
             _cleanup_task = asyncio.create_task(
@@ -177,7 +171,7 @@ async def _cleanup_loop(persistence: ChatPersistence, retention_days: int) -> No
             await asyncio.sleep(_CLEANUP_INTERVAL)
             deleted = persistence.cleanup_old_messages(retention_days)
             if deleted > 0:
-                logger.info("Periodic cleanup: removed %d old messages", deleted)
+                logger.info(f"Periodic cleanup: removed {deleted} old messages")
         except asyncio.CancelledError:
             logger.info("Cleanup task cancelled.")
             return

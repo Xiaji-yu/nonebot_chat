@@ -6,10 +6,7 @@
 
 __author__ = "Xiaji-yu"
 
-import logging
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 
 class AccessController:
@@ -63,3 +60,4 @@ class AccessController:
 
         # 白名单未启用且未被拉黑 → 放行
         return True, ""
+

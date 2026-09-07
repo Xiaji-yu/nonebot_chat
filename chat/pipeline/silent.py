@@ -6,10 +6,7 @@
 
 __author__ = "Xiaji-yu"
 
-import logging
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 
 class SilentFilter:
@@ -36,3 +33,4 @@ class SilentFilter:
             return False
         lower = text.lower()
         return any(kw in lower for kw in self._keywords)
+

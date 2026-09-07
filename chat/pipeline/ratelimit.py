@@ -7,11 +7,10 @@
 __author__ = "Xiaji-yu"
 
 import asyncio
-import logging
 import time
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from ..log import logger
 
 
 class RateLimiter:
@@ -50,8 +49,8 @@ class RateLimiter:
                 # 取最早的未过期记录，计算 retry_after
                 retry = timestamps[0] + self._window - now
                 logger.debug(
-                    "Rate limited: session=%s, count=%d/%d",
-                    session_id, len(timestamps), self._limit,
+                    f"Rate limited: session={session_id}, "
+                    f"count={len(timestamps)}/{self._limit}"
                 )
                 return False, max(retry, 0.0)
 

@@ -7,11 +7,10 @@
 __author__ = "Xiaji-yu"
 
 import asyncio
-import logging
 from datetime import datetime, time
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from ..log import logger
 
 
 class SleepController:
@@ -41,10 +40,10 @@ class SleepController:
                     return self._manual_sleeping
                 if self._cfg.mode == "schedule":
                     return self._is_in_schedule()
-                logger.warning("Unknown sleep mode: %s", self._cfg.mode)
+                logger.warning(f"Unknown sleep mode: {self._cfg.mode}")
                 return False
             except AttributeError as exc:
-                logger.warning("Sleep config missing attributes: %s", exc)
+                logger.warning(f"Sleep config missing attributes: {exc}")
                 return False
 
     async def is_override_allowed(self) -> bool:
@@ -62,7 +61,7 @@ class SleepController:
         """
         async with self._lock:
             self._manual_sleeping = not self._manual_sleeping
-            logger.info("Sleep mode toggled: %s", self._manual_sleeping)
+            logger.info(f"Sleep mode toggled: {self._manual_sleeping}")
             return self._manual_sleeping
 
     async def force_wake(self) -> None:
@@ -80,12 +79,12 @@ class SleepController:
             start = time.fromisoformat(self._cfg.schedule.start)
             end = time.fromisoformat(self._cfg.schedule.end)
         except (ValueError, AttributeError) as exc:
-            logger.warning("Invalid sleep schedule config: %s", exc)
+            logger.warning(f"Invalid sleep schedule config: {exc}")
             return False
 
         if start == end:
             logger.warning(
-                "Sleep schedule start equals end (%s), schedule disabled", start
+                f"Sleep schedule start equals end ({start}), schedule disabled"
             )
             return False
 

@@ -77,3 +77,40 @@ class TestPersonalityPromptFile:
         p = make_personality(tmp_path)
         msg = p.build_system_message()
         assert msg == {"role": "system", "content": "SOUL 内容"}
+
+
+class TestPersonalityPromptFileRobustness:
+    def test_non_utf8_soul_falls_back_without_crash(self, tmp_path: Path) -> None:
+        """GBK 编码的 SOUL.md 不应崩溃，回退内嵌提示。"""
+        (tmp_path / "SOUL.md").write_bytes("你是云崽。".encode("gbk"))
+        p = make_personality(tmp_path)
+        assert p.system_prompt == "内嵌提示"
+
+    def test_empty_soul_falls_back(self, tmp_path: Path) -> None:
+        """空 SOUL.md / 仅空白应回退内嵌提示。"""
+        (tmp_path / "SOUL.md").write_text("   \n  ", encoding="utf-8")
+        p = make_personality(tmp_path)
+        assert p.system_prompt == "内嵌提示"
+
+    def test_relative_prompt_file_ignores_cwd_same_name(self, tmp_path: Path, monkeypatch) -> None:
+        """相对 prompt_file 应只按配置目录解析，不被进程 CWD 同名文件抢占。"""
+        # 在 CWD 放置同名文件（不应被读取）
+        cwd_file = Path("persona_dup.md")
+        cwd_file.write_text("来自 CWD 的错误人格", encoding="utf-8")
+        try:
+            cfg_dir = tmp_path / "cfg"
+            cfg_dir.mkdir()
+            (cfg_dir / "persona_dup.md").write_text("来自配置目录的正确人格", encoding="utf-8")
+            yaml_path = cfg_dir / "chat_config.yaml"
+            yaml_path.write_text(
+                "personality:\n"
+                "  name: 小助手\n"
+                "  system_prompt: 内嵌提示\n"
+                "  prompt_file: persona_dup.md\n",
+                encoding="utf-8",
+            )
+            # monkeypatch 当前工作目录到 tmp_path 之外，模拟 bot 从别处启动
+            p = Personality(ChatConfig(config_path=str(yaml_path)))
+            assert p.system_prompt == "来自配置目录的正确人格"
+        finally:
+            cwd_file.unlink(missing_ok=True)

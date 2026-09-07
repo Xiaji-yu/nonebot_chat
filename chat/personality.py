@@ -6,7 +6,6 @@
 
 __author__ = "Xiaji-yu"
 
-import logging
 import os
 from pathlib import Path
 
@@ -14,8 +13,7 @@ import yaml
 from pydantic import ValidationError
 
 from .config import ChatConfig, ChatYamlConfig, PersistenceConfig, PipelineConfig
-
-logger = logging.getLogger(__name__)
+from .log import logger
 
 
 class Personality:
@@ -41,17 +39,17 @@ class Personality:
         """加载并验证 YAML 配置文件。"""
         path = Path(self._config.config_path)
         if not path.is_file():
-            logger.warning("Chat config file not found: %s, using defaults", path)
+            logger.warning(f"Chat config file not found: {path}, using defaults")
             return
         try:
             raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         except (OSError, yaml.YAMLError) as exc:
-            logger.error("Failed to load chat config from %s: %s", path, exc)
+            logger.error(f"Failed to load chat config from {path}: {exc}")
             return
         try:
             self._yaml = ChatYamlConfig(**raw)
         except ValidationError as exc:
-            logger.warning("Invalid chat config, using defaults: %s", exc)
+            logger.warning(f"Invalid chat config, using defaults: {exc}")
 
     # ------------------------------------------------------------------
     # Prompt 文件加载（SOUL.md / persona.md）
@@ -65,25 +63,39 @@ class Personality:
         2. 自动查找配置目录下的 SOUL.md。
         文件缺失或不可读时回退 YAML 内嵌 system_prompt。
         """
-        candidates: list[Path] = []
         explicit = self._yaml.personality.prompt_file
+        candidates: list[tuple[Path, bool]] = []
         if explicit:
-            candidates.append(Path(explicit))
-            if not Path(explicit).is_absolute():
-                candidates.append(self._config_dir / explicit)
+            p = Path(explicit)
+            if p.is_absolute():
+                candidates.append((p, True))
+            else:
+                # 相对路径只按配置目录解析，避免被进程 CWD 下同名文件抢占
+                candidates.append((self._config_dir / explicit, True))
         else:
-            candidates.append(self._config_dir / "SOUL.md")
+            candidates.append((self._config_dir / "SOUL.md", False))
 
-        for path in candidates:
+        for path, is_explicit in candidates:
             try:
-                if path.is_file():
-                    content = path.read_text(encoding="utf-8").strip()
-                    if content:
-                        self._prompt_from_file = content
-                        logger.info("Loaded personality from %s", path)
-                        return
+                if not path.is_file():
+                    if is_explicit:
+                        logger.warning(
+                            f"人格文件不存在: {path}（prompt_file 显式指定），回退内嵌提示词"
+                        )
+                    continue
+                content = path.read_text(encoding="utf-8").strip()
+                if not content:
+                    logger.warning(f"人格文件为空: {path}，回退内嵌提示词")
+                    continue
+                self._prompt_from_file = content
+                logger.info(f"Loaded personality from {path}")
+                return
             except OSError as exc:
-                logger.warning("Failed to read personality file %s: %s", path, exc)
+                logger.warning(f"读取人格文件失败 {path}: {exc}")
+            except UnicodeDecodeError as exc:
+                logger.warning(
+                    f"人格文件编码非 UTF-8，回退内嵌提示词 {path}: {exc}"
+                )
 
     # ------------------------------------------------------------------
     # Personality

@@ -17,10 +17,10 @@ from __future__ import annotations
 
 import os
 import re
-import sys
-import subprocess
-import tempfile
 import shutil
+import subprocess
+import sys
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -164,7 +164,7 @@ def download_zip(url: str, dest: Path) -> Path:
         print(_C.fail(str(exc)))
         sys.exit(1)
 
-    print(f"  解压 ...", end=" ", flush=True)
+    print("  解压 ...", end=" ", flush=True)
     extract_dir = dest / "extracted"
     extract_dir.mkdir(exist_ok=True)
 
@@ -312,8 +312,8 @@ class ConfigWizard:
         print(_C.header("交互式配置向导"))
 
         print(
-            f"  所有选项都有默认值，直接回车即可使用默认。\n"
-            f"  如果你不确定某项，建议保持默认。\n"
+            "  所有选项都有默认值，直接回车即可使用默认。\n"
+            "  如果你不确定某项，建议保持默认。\n"
         )
 
         self._step_personality()
@@ -336,7 +336,7 @@ class ConfigWizard:
 
     def _step_personality(self) -> None:
         print(f"\n{_C.CYAN}▸ 人格配置{_C.RESET}")
-        self.config["personality"] = {
+        personality: dict[str, Any] = {
             "name": ask("人格名称", "小助手"),
             "system_prompt": self._ask_multiline(
                 "系统提示词（System Prompt，空行使用默认）",
@@ -344,12 +344,10 @@ class ConfigWizard:
                 "请用简洁、自然的语气回复，避免过于正式或机械的表达。\n"
                 "适当使用 emoji，但不要过度。记住和用户的历史对话上下文。",
             ),
-            "wake_words": ask_list(
-                "唤醒词列表（子串匹配，不区分大小写）",
-                ["小助手", "bot"],
-                "唤醒词",
-            ),
         }
+        if ask_bool("使用外部人格文件（如 SOUL.md，留空则用上方提示词）", False):
+            personality["prompt_file"] = ask("人格文件路径（相对本配置目录）", "SOUL.md")
+        self.config["personality"] = personality
 
     def _step_llm(self) -> None:
         print(f"\n{_C.CYAN}▸ LLM 配置{_C.RESET}")
@@ -432,19 +430,24 @@ class ConfigWizard:
 
     def _step_access(self) -> None:
         print(f"\n{_C.CYAN}▸ 黑白名单配置{_C.RESET}")
-        print("  mode=none 不过滤；whitelist 仅名单内可用；blacklist 拦截名单内")
-        mode = ask("访问模式", "none", choices=["none", "whitelist", "blacklist"])
-        users: list[str] = []
-        groups: list[str] = []
-        if mode != "none":
-            if ask_bool("是否配置用户名单", False):
-                users = ask_list("用户 ID 列表（QQ 号）", [], "QQ 号")
-            if ask_bool("是否配置群组名单", False):
-                groups = ask_list("群 ID 列表", [], "群 ID")
+        print("  白名单与黑名单相互独立、可同时启用；黑名单命中优先拦截。")
+
+        def _ask_list_block(title: str) -> dict[str, Any]:
+            enabled = ask_bool(f"是否启用{title}", False)
+            users: list[str] = []
+            groups: list[str] = []
+            if enabled:
+                if ask_bool("是否配置用户名单", False):
+                    users = ask_list("用户 ID 列表（QQ 号）", [], "QQ 号")
+                if ask_bool("是否配置群组名单", False):
+                    groups = ask_list("群 ID 列表", [], "群 ID")
+            return {"enabled": enabled, "users": users, "groups": groups}
+
+        whitelist = _ask_list_block("白名单")
+        blacklist = _ask_list_block("黑名单")
         self.config["pipeline"]["access"] = {
-            "mode": mode,
-            "users": users,
-            "groups": groups,
+            "whitelist": whitelist,
+            "blacklist": blacklist,
         }
 
     def _step_silent(self) -> None:
@@ -471,14 +474,22 @@ class ConfigWizard:
         }
 
     def _step_trigger(self) -> None:
-        print(f"\n{_C.CYAN}▸ 触发检测配置{_C.RESET}")
-        print("  mention=@机器人  keyword=关键词  spectator=所有消息")
-        mode = ask("触发模式", "keyword", choices=["mention", "keyword", "spectator"])
+        print(f"\n{_C.CYAN}▸ 触发检测配置（群聊规则，私聊始终直接回复）{_C.RESET}")
+        print(
+            "  mention=仅@机器人  keyword=仅关键词  "
+            "mention_keyword=@或关键词(任一)\n"
+            "  spectator=所有群消息  disabled=群聊不触发"
+        )
+        mode = ask(
+            "触发模式",
+            "mention_keyword",
+            choices=["mention", "keyword", "mention_keyword", "spectator", "disabled"],
+        )
         keywords: list[str] = []
-        if mode == "keyword":
+        if mode in ("keyword", "mention_keyword"):
             keywords = ask_list(
                 "触发关键词列表",
-                ["小助手", "bot"],
+                ["云崽", "小助手"],
                 "关键词",
             )
         self.config["pipeline"]["trigger"] = {
@@ -523,35 +534,16 @@ class ConfigWizard:
 
 # ── 配置写入（安全 YAML 序列化） ─────────────────────────────────
 
-def _yaml_scalar(value: str, indent: int, literal_block: bool = False) -> str:
-    """安全地序列化一个 YAML 标量值。
+def _quote(value: str) -> str:
+    """返回一个 YAML 标量值的引号形式（不含缩进、不含 key）。
 
-    Args:
-        value: 原始字符串值
-        indent: 缩进层级
-        literal_block: 是否使用字面量块标量（|）
-
-    Returns:
-        安全的 YAML 标量行
+    - 空串 → 双引号（否则解析为 null）
+    - 含 YAML 特殊字符 → 双引号并转义
+    - 其余 → 原样返回
     """
-    prefix = "  " * indent
-
-    if literal_block and "\n" in value:
-        # 字面量块标量：处理文档标记注入
-        safe_value = _yaml_escape_literal_block(value)
-        lines = safe_value.split("\n")
-        result = [f"{prefix}|"]
-        for line in lines:
-            result.append(f"{prefix}  {line}")
-        return "\n".join(result)
-
-    # 检测是否需要引号包裹
-    if _YAML_SPECIAL.search(value):
-        # 需要转义的双引号字符串
-        escaped = _yaml_escape(value)
-        return f'{prefix}"{escaped}"'
-
-    return f"{prefix}{value}"
+    if value == "" or _YAML_SPECIAL.search(value):
+        return f'"{_yaml_escape(value)}"'
+    return value
 
 
 def generate_yaml(config: dict[str, Any]) -> str:
@@ -585,7 +577,14 @@ def _write_section(data: dict[str, Any], lines: list[str], indent: int) -> None:
             else:
                 lines.append(f"{prefix}{key}: {value}")
         elif isinstance(value, str):
-            lines.append(_yaml_scalar(f"{key}: {value}", indent))
+            if "\n" in value:
+                # 多行字符串 → 字面量块标量（key: | 形式，保留换行）
+                safe_value = _yaml_escape_literal_block(value)
+                lines.append(f"{prefix}{key}: |")
+                for line in safe_value.split("\n"):
+                    lines.append(f"{prefix}  {line}")
+            else:
+                lines.append(f"{prefix}{key}: {_quote(value)}")
         elif isinstance(value, bool):
             lines.append(f"{prefix}{key}: {'true' if value else 'false'}")
         else:
@@ -722,7 +721,7 @@ def install_nonebot_deps() -> bool:
     if not has_adapter:
         missing["nonebot-adapter-onebot"] = ">=2.0.0"
 
-    print(f"\n  需要安装缺失的依赖：")
+    print("\n  需要安装缺失的依赖：")
     for pkg in missing:
         print(f"    - {pkg}")
 
@@ -860,7 +859,7 @@ def main() -> None:
 
             install_dir.parent.mkdir(parents=True, exist_ok=True)
             if install_dir.exists():
-                if not ask_bool(f"目录已存在，是否覆盖？", False):
+                if not ask_bool("目录已存在，是否覆盖？", False):
                     print("  已取消")
                     sys.exit(0)
                 shutil.rmtree(install_dir)

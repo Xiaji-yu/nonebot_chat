@@ -156,17 +156,16 @@ class LLMClient:
         """
         for idx, ep in enumerate(self._endpoints):
             logger.debug(
-                "LLM request: model=%s, msgs=%d, temp=%.2f (endpoint %d/%d)",
-                ep.model, len(messages), temperature, idx + 1, len(self._endpoints),
+                f"LLM request: model={ep.model}, msgs={len(messages)}, "
+                f"temp={temperature:.2f} (endpoint {idx + 1}/{len(self._endpoints)})"
             )
             result = await self._chat_once(ep, messages, temperature, max_tokens)
             if result is not None:
-                logger.info("LLM 回复来自 %s", self._endpoint_tag(idx, ep))
+                logger.info(f"LLM 回复来自 {self._endpoint_tag(idx, ep)}")
                 return result
             if idx < len(self._endpoints) - 1:
                 logger.warning(
-                    "LLM endpoint %s/%s failed, falling back to next endpoint",
-                    ep.base_url, ep.model,
+                    f"LLM endpoint {ep.base_url}/{ep.model} failed, falling back to next endpoint"
                 )
         return None
 
@@ -188,13 +187,11 @@ class LLMClient:
             ) as resp:
                 if resp.status != 200:
                     text = await resp.text()
-                    logger.error(
-                        "LLM API error %d: %s", resp.status, text[:500]
-                    )
+                    logger.error(f"LLM API error {resp.status}: {text[:500]}")
                     return None
                 data = await resp.json()
         except aiohttp.ClientError as exc:
-            logger.error("LLM request failed: %s", exc)
+            logger.error(f"LLM request failed: {exc}")
             return None
         except Exception:
             logger.exception("Unexpected error during LLM request")
@@ -203,7 +200,7 @@ class LLMClient:
         try:
             return data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError):
-            logger.error("Unexpected LLM response format: %s", str(data)[:500])
+            logger.error(f"Unexpected LLM response format: {str(data)[:500]}")
             return None
 
     # ------------------------------------------------------------------
@@ -231,8 +228,8 @@ class LLMClient:
         """
         for idx, ep in enumerate(self._endpoints):
             logger.debug(
-                "LLM stream request: model=%s, msgs=%d (endpoint %d/%d)",
-                ep.model, len(messages), idx + 1, len(self._endpoints),
+                f"LLM stream request: model={ep.model}, msgs={len(messages)} "
+                f"(endpoint {idx + 1}/{len(self._endpoints)})"
             )
             stream = self._stream_once(ep, messages, temperature, max_tokens)
             try:
@@ -241,12 +238,11 @@ class LLMClient:
                 # 该端点未能建立请求（无内容产出）→ 尝试下一个端点
                 if idx < len(self._endpoints) - 1:
                     logger.warning(
-                        "LLM stream endpoint %s/%s failed to start, trying next",
-                        ep.base_url, ep.model,
+                        f"LLM stream endpoint {ep.base_url}/{ep.model} failed to start, trying next"
                     )
                 continue
             # 端点已成功建立并产出首块 → 消费完本端点（不再切换）
-            logger.info("LLM 回复来自 %s", self._endpoint_tag(idx, ep))
+            logger.info(f"LLM 回复来自 {self._endpoint_tag(idx, ep)}")
             yield first
             async for chunk in stream:
                 yield chunk
@@ -275,9 +271,7 @@ class LLMClient:
             ) as resp:
                 if resp.status != 200:
                     text = await resp.text()
-                    logger.error(
-                        "LLM stream API error %d: %s", resp.status, text[:500]
-                    )
+                    logger.error(f"LLM stream API error {resp.status}: {text[:500]}")
                     return
                 async for line in resp.content:
                     if not line:
@@ -296,7 +290,7 @@ class LLMClient:
                     except (KeyError, IndexError, TypeError, ValueError):
                         continue
         except aiohttp.ClientError as exc:
-            logger.error("LLM stream request failed: %s", exc)
+            logger.error(f"LLM stream request failed: {exc}")
         except Exception:
             logger.exception("Unexpected error during LLM stream request")
 

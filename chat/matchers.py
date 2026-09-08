@@ -89,7 +89,7 @@ def setup_matchers(
         memory_store=memory_store,
         distiller=distiller,
     )
-    pipeline.set_proactive(proactive)
+    _pipeline.set_proactive(proactive)
 
     # 延迟导入 NoneBot（运行时才需要，避免循环依赖）
     from nonebot import Bot, on_command, on_message
@@ -118,7 +118,7 @@ def setup_matchers(
 
     @cmd_matcher.handle()
     async def _handle_command(bot: Bot, event: MessageEvent) -> None:
-        await pipeline.process(
+        await _pipeline.process(
             event,
             get_session_id(event),
             _make_send(bot, event),
@@ -134,7 +134,7 @@ def setup_matchers(
 
     @msg_matcher.handle()
     async def _handle_message(bot: Bot, event: MessageEvent) -> None:
-        await pipeline.process(
+        await _pipeline.process(
             event,
             get_session_id(event),
             _make_send(bot, event),

@@ -7,12 +7,12 @@
 __author__ = "Xiaji-yu"
 
 import time
+from pathlib import Path
 from typing import Any
 
 from ..image_source import (
     extract_images,
     get_shared_session,
-    is_local_path_allowed,
     load_image_data_uri,
 )
 from ..log import logger

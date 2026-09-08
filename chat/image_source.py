@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import mimetypes
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any

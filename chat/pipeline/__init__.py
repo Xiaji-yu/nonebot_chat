@@ -9,7 +9,12 @@ __author__ = "Xiaji-yu"
 import time
 from typing import Any
 
-from ..image_source import extract_images, load_image_data_uri
+from ..image_source import (
+    extract_images,
+    get_shared_session,
+    is_local_path_allowed,
+    load_image_data_uri,
+)
 from ..log import logger
 from ..mask import mask_user
 from ..message_desc import describe as describe_message
@@ -205,8 +210,12 @@ class Pipeline:
         trigger_type = "private" if is_private else "image"
         # 加载图片（本地路径 → url 下载 → 原样 url 兜底）
         images: list[str] = []
+        allowed_dirs = [Path(d).resolve() for d in self._cfg.image.local_image_dirs]
+        session = await get_shared_session()
         for ref in image_refs:
-            uri = await load_image_data_uri(ref)
+            uri = await load_image_data_uri(
+                ref, session=session, allowed_local_dirs=allowed_dirs,
+            )
             if uri:
                 images.append(uri)
         logger.info(f"[image] 处理 {len(image_refs)} 张图，成功加载 {len(images)} 张")
@@ -349,6 +358,11 @@ class Pipeline:
             f"  触发模式: {self._trigger.mode}"
         )
         await send_func(status_text)
+
+    async def close(self) -> None:
+        """释放 Pipeline 持有的外部资源（如共享 aiohttp session）。"""
+        from ..image_source import close_shared_session
+        await close_shared_session()
 
     # ------------------------------------------------------------------
     # 属性访问（供外部组件引用）

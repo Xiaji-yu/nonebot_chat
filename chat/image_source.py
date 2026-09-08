@@ -50,17 +50,16 @@ class ImageRef:
     url: str = ""    # OneBot url 字段（可下载地址）
 
     def has_local_path(self) -> bool:
-        """file 是否指向可直接读取的本地路径（file:// 或 /绝对路径）。"""
+        """file 是否指向可直接读取的本地路径（仅 file:// 或绝对路径）。"""
         if not self.file:
             return False
         if self.file.startswith("file://"):
             return True
         parsed = urlparse(self.file)
-        # Windows 盘符（C:\\）或 POSIX 绝对路径，或相对路径存在
+        # Windows 盘符（C:\\）或 POSIX 绝对路径
         return bool(parsed.scheme == "") and (
             self.file.startswith("/")
             or (len(self.file) >= 3 and self.file[1:3] in (":\\", ":/"))
-            or Path(self.file).exists()
         )
 
     def local_path(self) -> Path:
@@ -68,6 +67,51 @@ class ImageRef:
         if self.file.startswith("file://"):
             return Path(unquote(self.file[len("file://"):]))
         return Path(self.file)
+
+
+def is_local_path_allowed(path: Path, allowed_dirs: Sequence[Path]) -> bool:
+    """检查本地路径是否在白名单目录内。
+
+    Args:
+        path: 待检查的本地路径。
+        allowed_dirs: 允许读取的目录列表。
+
+    Returns:
+        是否允许读取。
+    """
+    if not allowed_dirs:
+        return False
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return False
+    for allowed in allowed_dirs:
+        try:
+            allowed_resolved = allowed.resolve()
+        except OSError:
+            continue
+        if resolved == allowed_resolved or allowed_resolved in resolved.parents:
+            return True
+    return False
+
+
+_shared_session: aiohttp.ClientSession | None = None
+
+
+async def get_shared_session() -> aiohttp.ClientSession:
+    """获取可复用的共享 aiohttp session（延迟初始化）。"""
+    global _shared_session
+    if _shared_session is None or _shared_session.closed:
+        _shared_session = aiohttp.ClientSession(timeout=_DOWNLOAD_TIMEOUT)
+    return _shared_session
+
+
+async def close_shared_session() -> None:
+    """关闭共享 aiohttp session（插件关闭时调用）。"""
+    global _shared_session
+    if _shared_session is not None and not _shared_session.closed:
+        await _shared_session.close()
+    _shared_session = None
 
 
 def extract_images(event: Any) -> list[ImageRef]:
@@ -93,13 +137,16 @@ def extract_images(event: Any) -> list[ImageRef]:
 
 
 async def load_image_data_uri(
-    ref: ImageRef, session: aiohttp.ClientSession | None = None,
+    ref: ImageRef,
+    session: aiohttp.ClientSession | None = None,
+    allowed_local_dirs: Sequence[Path] | None = None,
 ) -> str | None:
     """将图片加载为 data URI（优先本地路径，其次 url 下载）。
 
     Args:
         ref: 图片引用。
-        session: 可复用的 aiohttp session；None 则临时创建。
+        session: 可复用的 aiohttp session；None 则使用共享 session。
+        allowed_local_dirs: 允许读取的本地目录白名单；None 或空列表则禁止本地读取。
 
     Returns:
         data URI 字符串；完全失败返回 None。
@@ -107,6 +154,9 @@ async def load_image_data_uri(
     # 1) 本地路径（同机部署）
     if ref.has_local_path():
         path = ref.local_path()
+        if not is_local_path_allowed(path, allowed_local_dirs or ()):
+            logger.warning(f"[image] 本地图片路径不在允许目录内，跳过: {path}")
+            return None
         try:
             data = path.read_bytes()
             if len(data) > _MAX_BYTES:
@@ -120,7 +170,8 @@ async def load_image_data_uri(
 
     # 2) url 下载
     if ref.url:
-        uri = await _download_to_data_uri(ref.url, session)
+        s = session if session is not None else await get_shared_session()
+        uri = await _download_to_data_uri(ref.url, s)
         if uri:
             return uri
         # 3) 下载失败 → 原样返回 url（模型云端自抓）

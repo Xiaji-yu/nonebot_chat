@@ -48,7 +48,7 @@ def _init() -> None:
 
     from .config import ChatConfig as _ChatConfig
     from .llm import LLMClient as _LLMClient
-    from .matchers import setup_matchers
+    from .matchers import get_pipeline, setup_matchers
     from .memory import ChatPersistence as _ChatPersistence
     from .memory import MemoryDistiller as _MemoryDistiller
     from .memory import MemoryStore as _MemoryStore
@@ -139,6 +139,9 @@ def _init() -> None:
             _persistence.close()
         if _llm_client is not None:
             await _llm_client.close()
+        pipeline = get_pipeline()
+        if pipeline is not None:
+            await pipeline.close()
         await _memory_store.clear_all()
         logger.info("Chat plugin shut down, memory cleared.")
 

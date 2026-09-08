@@ -56,16 +56,45 @@ class TestImageRefLocalPath:
 
 class TestLoadImageDataUri:
     @pytest.mark.asyncio
-    async def test_loads_local_file(self, tmp_path) -> None:
+    async def test_loads_local_file_when_allowed(self, tmp_path) -> None:
         p = tmp_path / "pic.png"
         p.write_bytes(b"\x89PNG fake")
         ref = ImageRef(file=str(p), url="")
-        uri = await load_image_data_uri(ref)
+        uri = await load_image_data_uri(ref, allowed_local_dirs=[tmp_path])
         assert uri is not None
         assert uri.startswith("data:image/png;base64,")
         # 解码验证内容一致
         payload = uri.split(",", 1)[1]
         assert base64.b64decode(payload) == b"\x89PNG fake"
+
+    @pytest.mark.asyncio
+    async def test_local_file_outside_allowed_dirs_is_rejected(self, tmp_path) -> None:
+        p = tmp_path / "pic.png"
+        p.write_bytes(b"\x89PNG fake")
+        other = tmp_path / "other"
+        other.mkdir()
+        ref = ImageRef(file=str(p), url="")
+        uri = await load_image_data_uri(ref, allowed_local_dirs=[other])
+        assert uri is None
+
+    @pytest.mark.asyncio
+    async def test_empty_allowed_dirs_rejects_local_paths(self, tmp_path) -> None:
+        p = tmp_path / "pic.png"
+        p.write_bytes(b"\x89PNG fake")
+        ref = ImageRef(file=str(p), url="")
+        uri = await load_image_data_uri(ref, allowed_local_dirs=[])
+        assert uri is None
+
+    @pytest.mark.asyncio
+    async def test_allowed_subdirectory_is_accepted(self, tmp_path) -> None:
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        p = sub / "pic.png"
+        p.write_bytes(b"\x89PNG fake")
+        ref = ImageRef(file=str(p), url="")
+        uri = await load_image_data_uri(ref, allowed_local_dirs=[tmp_path])
+        assert uri is not None
+        assert uri.startswith("data:image/png;base64,")
 
     @pytest.mark.asyncio
     async def test_downloads_url(self) -> None:
@@ -104,3 +133,25 @@ class TestLoadImageDataUri:
     async def test_nothing_available_returns_none(self) -> None:
         ref = ImageRef(file="", url="")
         assert await load_image_data_uri(ref) is None
+
+    @pytest.mark.asyncio
+    async def test_shared_session_is_reused(self) -> None:
+        from chat.image_source import close_shared_session, get_shared_session
+
+        ref = ImageRef(file="", url="http://img/x.png")
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.headers = {"Content-Type": "image/png"}
+        mock_resp.read = AsyncMock(return_value=b"PNGDATA")
+        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_resp.__aexit__ = AsyncMock(return_value=False)
+
+        shared = await get_shared_session()
+        shared.get = AsyncMock(return_value=mock_resp)
+        shared.__aenter__ = AsyncMock(return_value=shared)
+        shared.__aexit__ = AsyncMock(return_value=False)
+
+        uri = await load_image_data_uri(ref)
+        assert uri is not None
+        shared.get.assert_called_once()
+        await close_shared_session()

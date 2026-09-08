@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from chat.config import (
     AccessConfig,
     ChatConfig,
+    ImageConfig,
     LLMConfig,
     MemoryConfig,
     PipelineConfig,
@@ -190,6 +191,24 @@ class TestSleepScheduleConfig:
         sc = SleepScheduleConfig()
         assert sc.start == "23:00"
         assert sc.end == "08:00"
+
+
+# ── ImageConfig ────────────────────────────────────────────────────
+
+
+class TestImageConfig:
+    def test_default_empty_dirs(self) -> None:
+        cfg = ImageConfig()
+        assert cfg.local_image_dirs == []
+
+    def test_custom_dirs(self) -> None:
+        cfg = ImageConfig(local_image_dirs=["/data/images", "C:\\QQ\\Images"])
+        assert cfg.local_image_dirs == ["/data/images", "C:\\QQ\\Images"]
+
+    def test_pipeline_config_has_image_section(self) -> None:
+        pc = PipelineConfig()
+        assert hasattr(pc, "image")
+        assert pc.image.local_image_dirs == []
 
 
 # ── PipelineConfig ─────────────────────────────────────────────────

@@ -48,6 +48,14 @@ def get_session_id(event: Any) -> str:
     return "evt_" + hashlib.md5(str(stable_attrs).encode()).hexdigest()[:12]
 
 
+_pipeline: Pipeline | None = None
+
+
+def get_pipeline() -> Pipeline | None:
+    """获取当前 Pipeline 实例（生命周期由 NoneBot 管理）。"""
+    return _pipeline
+
+
 def setup_matchers(
     config: ChatConfig,
     personality: Personality,
@@ -68,12 +76,13 @@ def setup_matchers(
         proactive: 主动回复器。
         bot_send: 可选，异步发送函数。None 则使用 NoneBot 默认发送。
     """
+    global _pipeline
     if not config.chat_enabled:
         logger.info("Chat plugin disabled by config.")
         return
 
     # 构建 Pipeline（配置从 YAML 加载）
-    pipeline = Pipeline(
+    _pipeline = Pipeline(
         pipeline_config=personality.pipeline_config,
         personality=personality,
         llm_client=llm_client,

@@ -175,6 +175,15 @@ class ProactiveConfig(BaseModel):
     """主动回复检查间隔（秒）。"""
 
 
+# ── 图片处理配置 ──────────────────────────────────────────────────
+
+class ImageConfig(BaseModel):
+    """图片处理配置。"""
+
+    local_image_dirs: list[str] = Field(default=[])
+    """允许读取的本地图片目录（绝对路径）。空列表表示禁止本地文件读取。"""
+
+
 # ── Pipeline 配置 ──────────────────────────────────────────────────
 
 class DedupConfig(BaseModel):
@@ -357,6 +366,7 @@ class PipelineConfig(BaseModel):
     trigger: TriggerConfig = Field(default_factory=TriggerConfig)
     debounce: DebounceConfig = Field(default_factory=DebounceConfig)
     format: FormatConfig = Field(default_factory=FormatConfig)
+    image: ImageConfig = Field(default_factory=ImageConfig)
 
 
 class ChatConfig(BaseModel):
